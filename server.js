@@ -5,39 +5,31 @@ const path = require('path');
 const PORT=process.env.PORT||3000
 
 const app = express();
-const server = app.listen(PORT,() => console.log('🗨️server on port${PORT}'))
+const server = app.listen(PORT,"0.0.0.0",() => console.log(`server on port${PORT}`))
 const io = require('socket.io')(server);
 //const io=require('socket.io')(server)
-
+let socketsConnected =new Set();
 app.use(express.static(path.join(__dirname, 'public')));
 
-io.on('connection',onconnected)
+io.on('connection',onConnected)
 
-function onconnected(socket)                                                                   {
+function onConnected(socket){
     console.log(socket.id);
-    socketsconnected.add(socket.id)
+    socketsConnected.add(socket.id)
     
-    io.emit('clients-total',socketsconnected.size)
+    io.emit('clients-total',socketsConnected.size)
 
     socket.on('disconnect',() =>{
         console.log('socket disconnected',socket.id);
-        socketsconnected.delete(socket.id)
-        io.emit('clients-total',socketsconnected.size)
+        socketsConnected.delete(socket.id)
+        io.emit('clients-total',socketsConnected.size)
+    })
+    socket.on('chat-message',(data)=>{
+        console.log(data)
+        socket.broadcast.emit('chat-message',data);
     })
 }
 
 
-//     socket.on('chat message', (msg) => {
-//         io.emit('chat message', msg);
-//     });
 
-//     socket.on('disconnect', () => {
-//         console.log('Namni tokko ba\'eera');
-//     });
-// });
-
-// const PORT = 3000;
-// server.listen(PORT, () => {
-//     console.log(`Server koo http://localhost:${PORT} irratti hojjechaa jira`);
-// });
 

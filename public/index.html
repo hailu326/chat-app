@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html>
 <head>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+
     <link rel="stylesheet" href="style.css">
-    <link rel="stylesheet" href="<link rel="stylesheet"
-     href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css"
+   <!-- <link rel="stylesheet" 
+     href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css">
      integrity="sha512-2SwdPD6INVrV/lHTZbO2nodKhrnDdJK9/kg2XD1r9uGqPo1cUbujc+IYdlYdEErWNu69gVcYgdxlmVmzTWnetw==" 
-     crossorigin="anonymous" referrerpolicy="no-referrer" />">
+     crossorigin="anonymous" referrerpolicy="no-referrer">-->
     <title>Oromo Chat App</title>
     
 </head>
@@ -39,36 +41,16 @@
             <input type="text" name="message" id="message-input" class="message-input">
             <div class="v-divider"></div>
             <button type="submit" class="send-button">send <span>
-                <i class="fas fa-papper-plane"></i>
+                <i class="fa-solid fa-papper-plane"></i>
             </span></button>
          </form>
-         <h3 class="clients-total" id="client-total">Total clients:2</h3>
+         <h3 class="clients-total" id="clients-total">Total clients:2</h3>
     </div>
    
    
     <script src="/socket.io/socket.io.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.30.1/moment.min.js"></script>
     <script src="main.js"></script>
-    <!--<script>
-        var socket = io();
-        var form = document.getElementById('form');
-        var input = document.getElementById('input');
-        var messages = document.getElementById('messages');
-
-        form.addEventListener('submit', function(e) {
-            e.preventDefault();
-            if (input.value) {
-                socket.emit('chat message', input.value);
-                input.value = '';
-            }
-        });
-
-        socket.on('chat message', function(msg) {
-            var item = document.createElement('li');
-            item.textContent = msg;
-            messages.appendChild(item);
-            window.scrollTo(0, document.body.scrollHeight);
-        });
-    </script>-->
 </body>
 </html>
 
