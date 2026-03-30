@@ -16,18 +16,18 @@
     <div class="main">
         <div class="name">
             <span><i class="far fa-user"></i></span>
-            <input type="text" id="name-input" class="name-input" value="👤anonymous" maxlength="20">
+            <input type="text" id="name-input" class="name-input" value="anonymous" maxlength="20">
         </div>
          <ul class="message-container" id="message-container">
             <li class="message-left">
                 <p class="message">
-                    akkam jirtu
+                    
                     <span>at 26 july 10:40</span>
                 </p>
             </li>
             <li class="message-right">
                 <p class="message">
-                    glt waaqaa akkam isin
+                    
                     <span>at 26 july 10:40</span>
                 </p>
             </li>
@@ -40,14 +40,14 @@
          <form class="message-form" id="message-form">
             <input type="text" name="message" id="message-input" class="message-input">
             <div class="v-divider"></div>
-            <button type="submit" class="send-button">send <span>
-                <i class="fa-solid fa-papper-plane"></i>
+            <button type="submit" class="send-button"> <span>
+                <i class="fa-solid fa-paper-plane"></i>
             </span></button>
          </form>
          <h3 class="clients-total" id="clients-total">Total clients:2</h3>
     </div>
-   
-   
+   <audio id="message-tone" src="universfield-new-notification-021-370045.mp3"></audio>
+    <button id="notif-btn" style="display:none; margin: 10px auto; display: block;">Notification Hojjechiisi</button>
     <script src="/socket.io/socket.io.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.30.1/moment.min.js"></script>
     <script src="main.js"></script>
