@@ -3,11 +3,16 @@ const express = require('express');
 // const { Server } = require('socket.io');
 const path = require('path');
 const PORT=process.env.PORT||3000
+const mongoose =require('mongoose');
 
 const app = express();
 const server = app.listen(PORT,"0.0.0.0",() => console.log(`server on port${PORT}`))
 const io = require('socket.io')(server);
 //const io=require('socket.io')(server)
+
+const dbURI ='mongodb+srv://hailutadese786_db_user:Hailu3025@cluster0.lpba7lj.mongodb.net/?appName=Cluster0'
+mongoose.connect(dbURI).then(()=>console.log('connected to db'))
+.catch(err=>console.log('db connection error:',err));
 let socketsConnected =new Set();
 app.use(express.static(path.join(__dirname, 'public')));
 
