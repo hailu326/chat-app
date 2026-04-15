@@ -13,6 +13,34 @@ const io = require('socket.io')(server);
 const dbURI ='mongodb+srv://hailutadese786_db_user:Hailu3025@cluster0.lpba7lj.mongodb.net/?appName=Cluster0'
 mongoose.connect(dbURI).then(()=>console.log('connected to db'))
 .catch(err=>console.log('db connection error:',err));
+const messageSchema = new mongoose.Schema({
+    name: String,
+    message: String,
+    profile: String,
+    dateTime: Date
+});
+
+const Message = mongoose.model('Message', messageSchema);
+
+let onlineUsers = {}; // Namoota online jiran asitti kuusi
+
+io.on('connection', (socket) => {
+    
+    // Yeroo namni haaraan signup godhu
+    socket.on('new-user-joined', (userData) => {
+        onlineUsers[socket.id] = userData; // Socket ID waliin suuraa fi maqaa kuusi
+        io.emit('update-user-list', Object.values(onlineUsers)); // Nama hundaaf ergi
+    });
+
+    socket.on('disconnect', () => {
+        delete onlineUsers[socket.id]; // Yoo ba'an dhabamsiisi
+        io.emit('update-user-list', Object.values(onlineUsers));
+    });
+
+    // ... koodii chat-message kee isa kaan ...
+});
+
+
 let socketsConnected =new Set();
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -29,10 +57,26 @@ function onConnected(socket){
         socketsConnected.delete(socket.id)
         io.emit('clients-total',socketsConnected.size)
     })
-    socket.on('chat-message',(data)=>{
-        console.log(data)
-        socket.broadcast.emit('chat-message',data);
-    })
+socket.on('chat-message', async (data) => {
+    try {
+        console.log(data);
+
+        const newMessage = new Message({
+            name: data.name,
+            message: data.message,
+            dateTime: data.dateTime
+        });
+
+       // await newMessage.save();
+
+        // 👉 IMPORTANT: ergi
+        socket.broadcast.emit('chat-message', data);
+
+    } catch (err) {
+        console.log("Error:", err);
+    }
+});
+  
     socket.on('feedback',(data)=>{
          socket.broadcast.emit('feedback',data);
     })

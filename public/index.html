@@ -7,28 +7,64 @@
    <!-- <link rel="stylesheet" 
      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css">
      integrity="sha512-2SwdPD6INVrV/lHTZbO2nodKhrnDdJK9/kg2XD1r9uGqPo1cUbujc+IYdlYdEErWNu69gVcYgdxlmVmzTWnetw==" 
-     crossorigin="anonymous" referrerpolicy="no-referrer">-->
+     crossorigin="anonymous" referrerpolicy ="no-referrer">-->
     <title>Oromo Chat App</title>
     
 </head>
 <body>
-    <h1 class="title">HAILU chat App🗨️</h1>
+    <div class="container">
+        <div id="signup-page">
+            <h2>signup</h2>
+            <form id="signup-form">
+                <div class="profile-upload">
+                    <label for="file-input"><img src="default-avator.png" alt="" id="preview" style="width: 80px;height: 80px;border-radius: 50%;border: 1px solid #ccc;"></label>
+                    <input type="file" id="file-input" class="file-input" accept="image/*"
+                    style="display:none;">
+                    <!--<img src="${data.profilePic}" alt="Profile Picture" id="preview">-->
+                    <p>select profile photo</p>
+    
+                
+                </div>
+                <input type="text" id="username" placeholder="full name" required>
+                <input type="email" id="email" placeholder="email address" required>
+                <input type="tel" id="phone" placeholder="phone number" required>
+                <input type="password" id="password" placeholder="password" required>
+                <input type="password" id="confirm-password" placeholder="confirm password" required>
+                <button type="submit">create account</button>
+            </form>
+        </div>
+    </div>
+ 
+  <!-- 2. USER LIST PAGE (Jalqaba ni dhokata) -->
+<div id="user-list-page" style="display:none; text-align: center; padding: 20px;">
+       <h1 class="title">HAILU chat App🗨️</h1>
+    <h3>Select a friend to chat</h3>
+    <ul id="users-online-list" style="list-style: none; padding: 0; max-width: 400px; margin: auto;">
+        <!-- Namoonni online jiran asitti mul'atu -->
+    </ul>
+</div>
     <div class="main">
         <div class="name">
-            <span><i class="far fa-user"></i></span>
-            <input type="text" id="name-input" class="name-input" value="anonymous" maxlength="20">
+            
+    <!-- Icon namaa isa durii balleessiitii kana galchi -->
+    <span><img src="default-avatar.png" id="chat-avatar" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover; vertical-align: middle;"></span>
+    <input type="text" id="name-input" class="name-input" value="anonymous" maxlength="20">
+
+
+
+          <!--  <input type="text" id="name-input" class="name-input" value="anonymous" maxlength="20">-->
         </div>
          <ul class="message-container" id="message-container">
             <li class="message-left">
                 <p class="message">
                     
-                    <span>at 26 july 10:40</span>
+                    <span></span>
                 </p>
             </li>
             <li class="message-right">
                 <p class="message">
                     
-                    <span>at 26 july 10:40</span>
+                    <span></span>
                 </p>
             </li>
             <li class="message-feedback">

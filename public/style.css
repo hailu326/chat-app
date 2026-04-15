@@ -124,3 +124,82 @@ body{
     color: #7e7e7e;
 
 }
+/* --- Koodii kee isa duraa itti fufa --- */
+*{
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    scroll-behavior: smooth;
+}
+    
+body{
+    background-color:#ebebeb;
+    display: grid;
+    place-items: center;
+    min-height: 100vh; /* Gidduu akka galuuf */
+    font-family: sans-serif;
+}
+
+/* --- KANA ITTI DABALI: Signup Page Miidhaksuuf --- */
+#signup-page {
+    background-color: white;
+    padding: 30px;
+    border-radius: 24px;
+    box-shadow: 0px 10px 25px rgba(0,0,0,0.1);
+    width: 400px; /* Akka hamma Chat Room kee ta'uuf */
+    text-align: center;
+}
+
+#signup-page h2 {
+    margin-bottom: 20px;
+    color: #7e7e7e;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+}
+
+.profile-upload {
+    margin-bottom: 20px;
+    cursor: pointer;
+}
+
+#signup-page input {
+    width: 100%;
+    padding: 12px;
+    margin-bottom: 15px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    outline: none;
+    background-color: #f9f9f9;
+}
+
+#signup-page button {
+    width: 100%;
+    padding: 12px;
+    background-color: #2d2d2d;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    cursor: pointer;
+    transition: 0.3s;
+}
+
+#signup-page button:hover {
+    background-color: #444;
+}
+
+/* JALQABA IRRATTI CHAT ROOM DHOKSUU */
+.title, .main, .clients-total {
+    display: none; 
+}
+
+/* --- KOODII KEE ISA KAAN ITTI FUFA --- */
+.title{
+    margin: 20px 0;
+}
+.main{
+    border: 8px solid #dddddd;
+    border-radius:  24px;
+    overflow: hidden;
+    background-color: white;
+}
