@@ -1,4 +1,5 @@
 // 1. ELEMENTOOTA HUNDA GUBBAA IRRATTI TOKKO QOFA DECLARE GODHI
+const socket = io();
 const signupForm = document.getElementById('signup-form');
 const signupPage = document.getElementById('signup-page');
 const chatMain = document.querySelector('.main');
@@ -11,7 +12,22 @@ const messageContainer = document.getElementById('message-container');
 const messageTone = document.getElementById('message-tone');
 const fileInput = document.getElementById('file-input');
 const previewImg = document.getElementById('preview');
-const chatAvatar =document.getElementById('chat-avatar');
+const chatAvatar = document.getElementById('chat-avatar');
+const loginPage = document.getElementById('login-page');
+const loginForm = document.getElementById('login-form');
+const userListPage = document.getElementById('user-list-page');
+const usersOnlineList = document.getElementById('users-online-list');
+let currentUser = null; // Eenyummaa nama seenee qabachuuf
+
+window.addEventListener('load', () => {
+    const token = localStorage.getItem('chat-user-token');
+    if (token) {
+        currentUser = JSON.parse(token);
+        enterUserList(); // Ofumaan seensisi
+    }
+});
+
+
 
 fileInput.onchange = function(evt) {
     const [file] = this.files;
@@ -33,7 +49,13 @@ signupForm.addEventListener('submit', (e) => {
     nameInput.value = username; // Maqaa galmeessite chat keessa galchi
     chatAvatar.src =previewImg.src;
 
-    signupPage.style.display = 'none'; // Signup dhoksi
+   // signupPage.style.display = 'none'; // Signup dhoksi
+       // Koodii kee isa kanaan duraa keessatti kana bakka buusi
+    currentUser = { name: username, profile: previewImg.src };
+    localStorage.setItem('chat-user-token', JSON.stringify(currentUser)); // Token save godhi
+    enterUserList(); 
+
+
     chatTitle.style.display = 'block'; // Chat Room mul'isi
     chatMain.style.display = 'block';
     if (clientsTotal) clientsTotal.style.display = 'block'; // ClientsTotal jira ta'e mul'isi
@@ -55,8 +77,38 @@ if (fileInput && previewImg) {
     });
 }
 
+loginForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    // Server-tti ergi (Kun server irratti hunda'a)
+    socket.emit('login-user', {
+        email: document.getElementById('login-email').value,
+        password: document.getElementById('login-password').value
+    });
+});
+
+socket.on('auth-success', (userData) => {
+    currentUser = userData;
+    localStorage.setItem('chat-user-token', JSON.stringify(userData));
+    enterUserList();
+});
+
+function enterUserList() {
+    signupPage.style.display = 'none';
+    if(loginPage) loginPage.style.display = 'none';
+    userListPage.style.display = 'block';
+    nameInput.value = currentUser.name;
+    socket.emit('new-user-joined', currentUser);
+}
+
+function logoutUser() {
+    localStorage.removeItem('chat-user-token');
+    socket.emit('logout-user');
+    window.location.reload();
+}
+
+
 // 4. SOCKET.IO LOGIC
-const socket = io();
+//const socket = io();
 
 let isTabActive = true;
 document.addEventListener('visibilitychange', () => {
@@ -129,16 +181,49 @@ function addMessageToUI(isOwnMessage, data) {
     scrollToBottom();
 }
 socket.on('update-user-list', (users) => {
-    const userListUI = document.getElementById('users-online');
-    userListUI.innerHTML = ''; // Qulqulleessi
+    const userListUI = document.getElementById('users-online'); // ID kana HTML irratti mirkaneessi
+    if (!userListUI) return; 
+
+    userListUI.innerHTML = ''; // Dura qulqulleessi
+
     users.forEach(user => {
-        userListUI.innerHTML += `
-            <li style="padding: 5px; display: flex; align-items: center; cursor: pointer;">
-                <img src="${user.profile}" style="width: 25px; height: 25px; border-radius: 50%; margin-right: 10px;">
-                <span style="font-size: 14px;">${user.name}</span>
-            </li>`;
+        // Ofii kee akka list irratti of hin argine
+        if (user.name !== nameInput.value) { 
+            const li = document.createElement('li');
+            li.style = "padding: 10px; display: flex; align-items: center; cursor: pointer; border-bottom: 1px solid #eee; transition: 0.3s;";
+            
+            // Mouse irra yeroo deemu halluu akka jijjiiru (optional)
+            li.onmouseover = () => li.style.background = "#f5f5f5";
+            li.onmouseout = () => li.style.background = "transparent";
+
+            li.innerHTML = `
+                <img src="${user.profile}" style="width: 40px; height: 40px; border-radius: 50%; margin-right: 12px; object-fit: cover;">
+                <span style="font-size: 16px; font-weight: 500;">${user.name}</span>
+            `;
+
+            // --- NAMA FILATAME WALIIN CHAT JALQABUU ---
+            li.onclick = () => {
+                // 1. Fuula filannoo (User list) dhoksi
+                userListPage.style.display = 'none';
+                
+                // 2. Chat room (.main) mul'isi
+                chatMain.style.display = 'block';
+                
+                // 3. Suuraa nama filatamee sanaa Header irratti galchi
+                chatAvatar.src = user.profile;
+                
+                // 4. Maqaa isaa Header irratti barreessi
+                const chatHeaderName = document.getElementById('chat-with-name');
+                if (chatHeaderName) {
+                    chatHeaderName.innerText = user.name;
+                }
+            };
+            userListUI.appendChild(li); // Elementii 'li' HTML keessa galchi
+        }
     });
-});
+}); // <--- Cufinsa koodii isa citee
+
+
 signupForm.addEventListener('submit', (e) => {
     
     socket.emit('new-user-joined', { name: nameInput.value, profile: previewImg.src });
