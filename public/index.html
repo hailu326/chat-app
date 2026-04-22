@@ -17,7 +17,7 @@
             <h2>signup</h2>
             <form id="signup-form">
                 <div class="profile-upload">
-                    <label for="file-input"><img src="default-avator.png" alt="" id="preview" style="width: 80px;height: 80px;border-radius: 50%;border: 1px solid #ccc;"></label>
+                    <label for="file-input"><img src="default-avatar.png" alt="" id="preview" style="width: 80px;height: 80px;border-radius: 50%;border: 1px solid #ccc;"></label>
                     <input type="file" id="file-input" class="file-input" accept="image/*"
                     style="display:none;">
                     <!--<img src="${data.profilePic}" alt="Profile Picture" id="preview">-->
@@ -45,25 +45,36 @@
     </div>
  
   <!-- 2. USER LIST PAGE (Jalqaba ni dhokata) -->
-<div id="user-list-page" style="display:none; text-align: center; padding: 20px;">
+<!--<div id="user-list-page" style="display:none; text-align: center; padding: 20px;">
        <h1 class="title">HAILU chat App🗨️</h1>
     <h3>Select a friend to chat</h3>
     <ul id="users-online" style="list-style: none; padding: 0; max-width: 400px; margin: auto;">
          <h3 id="chat-with-name"></h3> 
-        <!-- Namoonni online jiran asitti mul'atu -->
+        <!-- Namoonni online jiran asitti mul'atu --
     </ul>
-</div>
-    <div class="main">
+</div>-->
+ <div id="user-list-page" style ="display: none;">
+            <div class="chat-header">
+                <h2>Chats</h2>
+                <i class="fas fa-user-edit" id="edit-profile-btn-list" style="cursor:pointer;"></i>
+            </div>
+            <ul id="users-online" class="friend-list">
+                <h3 id="chat-with-name"></h3> 
+                <!-- Namoonni online jiran asitti mul'atu -->
+            </ul>
+        </div>
+    <div class="main" style="display: none;">
         <div class="name">
             
     <!-- Icon namaa isa durii balleessiitii kana galchi -->
     <span><img src="default-avatar.png" id="chat-avatar" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover; vertical-align: middle;"></span>
     <input type="text" id="name-input" class="name-input" value="anonymous" maxlength="20">
 
-
+        <i class="fas fa-user-edit" id="edit-profile-btn" style="cursor:pointer; margin-left:10px; color:#555; font-size: 20px;"></i>
+    </div>
 
           <!--  <input type="text" id="name-input" class="name-input" value="anonymous" maxlength="20">-->
-        </div>
+        </div style="display: none;">
          <ul class="message-container" id="message-container">
             <li class="message-left">
                 <p class="message">
@@ -91,6 +102,31 @@
             </span></button>
          </form>
          <h3 class="clients-total" id="clients-total">Total clients:2</h3>
+         <!-- EDIT PROFILE MODAL -->
+<div id="edit-profile-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:9999; justify-content:center; align-items:center;">
+    <div style="background:white; padding:25px; border-radius:15px; width:90%; max-width:400px; text-align:center; position:relative;">
+        <h3 style="margin-bottom:20px;">Edit Your Profile</h3>
+        
+        <div class="edit-preview-container">
+            <label for="edit-file-input">
+                <img id="edit-preview" src="default-avatar.png" style="width:100px; height:100px; border-radius:50%; border:2px solid #3498db; cursor:pointer; object-fit:cover;">
+            </label>
+            <input type="file" id="edit-file-input" accept="image/*" style="display:none;">
+            <p style="font-size:12px; color:gray;">Click image to change</p>
+        </div>
+
+        <div style="margin-top:15px;">
+            <label style="display:block; text-align:left; font-size:14px; font-weight:bold;">Full Name:</label>
+            <input type="text" id="edit-name-input" style="width:100%; padding:10px; margin-top:5px; border:1px solid #ccc; border-radius:5px;">
+        </div>
+
+        <div style="margin-top:20px; display:flex; gap:10px;">
+            <button id="save-edit-btn" style="flex:1; padding:12px; background:#27ae60; color:white; border:none; border-radius:5px; cursor:pointer; font-weight:bold;">Save Changes</button>
+            <button id="cancel-edit-btn" style="flex:1; padding:12px; background:#e74c3c; color:white; border:none; border-radius:5px; cursor:pointer; font-weight:bold;">Cancel</button>
+        </div>
+    </div>
+</div>
+
     </div>
    <audio id="message-tone" src="universfield-new-notification-021-370045.mp3"></audio>
    <!--- <button id="notif-btn" style="display:none; margin: 10px auto; display: block;">Notification Hojjechiisi</button>--> 
@@ -98,5 +134,5 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.30.1/moment.min.js"></script>
     <script src="main.js"></script>
 </body>
-</html>
 
+</html>

@@ -16,8 +16,62 @@ const chatAvatar = document.getElementById('chat-avatar');
 const loginPage = document.getElementById('login-page');
 const loginForm = document.getElementById('login-form');
 const userListPage = document.getElementById('user-list-page');
-const usersOnlineList = document.getElementById('users-online-list');
+const usersOnlineList = document.getElementById('users-online');
 let currentUser = null; // Eenyummaa nama seenee qabachuuf
+// Elementoota Edit Profile
+const editModal = document.getElementById('edit-profile-modal');
+const editBtn = document.getElementById('edit-profile-btn');
+const cancelEdit = document.getElementById('cancel-edit-btn');
+const saveEdit = document.getElementById('save-edit-btn');
+const editNameField = document.getElementById('edit-name-input');
+const editPreview = document.getElementById('edit-preview');
+const editFileInp = document.getElementById('edit-file-input');
+
+// 1. Button Edit yeroo tuqamu modal bani
+editBtn.onclick = () => {
+    editModal.style.display = 'flex';
+    editNameField.value = currentUser.name;
+    editPreview.src = currentUser.profile;
+};
+
+// 2. Modal cufi
+cancelEdit.onclick = () => editModal.style.display = 'none';
+
+// 3. Suuraa jijjiiruu (Preview)
+editFileInp.onchange = function() {
+    const file = this.files[0];
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = (e) => editPreview.src = e.target.result;
+        reader.readAsDataURL(file);
+    }
+};
+
+// 4. SAVE GOCHUU
+saveEdit.onclick = () => {
+    const newName = editNameField.value;
+    const newProfile = editPreview.src;
+
+    if (newName.trim() === "") return alert("Maqaa galchi!");
+
+    // currentUser Update godhi
+    currentUser.name = newName;
+    currentUser.profile = newProfile;
+
+    // LocalStorage update godhi
+    localStorage.setItem('chat-user-token', JSON.stringify(currentUser));
+
+    // UI irratti jijjiiri
+    document.getElementById('name-input').value = newName;
+    document.getElementById('chat-avatar').src = newProfile;
+
+    // Server-tti beeksisi (Database akka jijjiiru)
+    socket.emit('update-profile', currentUser);
+
+    editModal.style.display = 'none';
+    alert("Profile Updated Successfully!");
+};
+
 
 window.addEventListener('load', () => {
     const token = localStorage.getItem('chat-user-token');
@@ -32,7 +86,12 @@ window.addEventListener('load', () => {
 fileInput.onchange = function(evt) {
     const [file] = this.files;
     if (file) {
-        previewImg.src = URL.createObjectURL(file);
+        const reader =new FileReader();
+            reader.onload =function(e){
+                previewImg.src = e.target.result;
+                if(currentUser) currentUser.profile = e.target.result;
+            }
+        reader.readAsDataURL(file);
     }
 };
 
@@ -56,8 +115,8 @@ signupForm.addEventListener('submit', (e) => {
     enterUserList(); 
 
 
-    chatTitle.style.display = 'block'; // Chat Room mul'isi
-    chatMain.style.display = 'block';
+    //chatTitle.style.display = 'block'; // Chat Room mul'isi
+   // chatMain.style.display = 'block';
     if (clientsTotal) clientsTotal.style.display = 'block'; // ClientsTotal jira ta'e mul'isi
 });
 
@@ -94,6 +153,7 @@ socket.on('auth-success', (userData) => {
 
 function enterUserList() {
     signupPage.style.display = 'none';
+    chatMain.style.display = 'none';
     if(loginPage) loginPage.style.display = 'none';
     userListPage.style.display = 'block';
     nameInput.value = currentUser.name;
@@ -132,9 +192,9 @@ function sendMessage() {
     if (messageInput.value.trim() === '') return; // Ergaa duwwaa hin ergin
     
     const data = {
-        name: nameInput.value,
+        name: currentUser.name,
         message: messageInput.value,
-        profile: previewImg.src,
+        profile: currentUser.profile,
         dateTime: new Date()
     };
     
@@ -188,7 +248,7 @@ socket.on('update-user-list', (users) => {
 
     users.forEach(user => {
         // Ofii kee akka list irratti of hin argine
-        if (user.name !== nameInput.value) { 
+        if (user.name !== currentUser.name) { 
             const li = document.createElement('li');
             li.style = "padding: 10px; display: flex; align-items: center; cursor: pointer; border-bottom: 1px solid #eee; transition: 0.3s;";
             
@@ -208,9 +268,10 @@ socket.on('update-user-list', (users) => {
                 
                 // 2. Chat room (.main) mul'isi
                 chatMain.style.display = 'block';
+                messageContainer.innerHTML = '';
                 
                 // 3. Suuraa nama filatamee sanaa Header irratti galchi
-                chatAvatar.src = user.profile;
+                chatAvatar.src = user.profile || 'default-avatar.png';
                 
                 // 4. Maqaa isaa Header irratti barreessi
                 const chatHeaderName = document.getElementById('chat-with-name');
@@ -224,10 +285,15 @@ socket.on('update-user-list', (users) => {
 }); // <--- Cufinsa koodii isa citee
 
 
-signupForm.addEventListener('submit', (e) => {
+//  signupForm.addEventListener('submit', (e) => {
+//      e.preventDefault();
+//      const username = document.getElementById('username').value;
+//      currentUser ={name:username,profile:previewImg.src};
+//      localStorage.setItem('chat-user-token', JSON.stringify(currentUser));
     
-    socket.emit('new-user-joined', { name: nameInput.value, profile: previewImg.src });
-});
+//      socket.emit('new-user-joined', { name: currentUser.name, profile: currentUser.profile });
+//      enterUserList();
+//  });
 function scrollToBottom() {
     messageContainer.scrollTo(0, messageContainer.scrollHeight);
 }
@@ -243,7 +309,7 @@ function clearFeedback() {
 // Namni barreessuu jalqabe
 messageInput.addEventListener('focus', () => {
     socket.emit('feedback', {
-        feedback: `✍️ ${nameInput.value} is typing a message`
+        feedback: `✍️ ${currentUser.name } is typing a message`
     });
 });
 
