@@ -26,6 +26,46 @@ const saveEdit = document.getElementById('save-edit-btn');
 const editNameField = document.getElementById('edit-name-input');
 const editPreview = document.getElementById('edit-preview');
 const editFileInp = document.getElementById('edit-file-input');
+// function showPage(page) {
+//     signupPage.style.display = 'none';
+//     loginPage.style.display = 'none';
+//     userListPage.style.display = 'none';
+//     chatMain.style.display = 'none';
+
+//     page.style.display = 'block';
+// }
+// Button "Back" (Gara User List-itti deebi'uuf)
+const backBtn = document.getElementById('back-btn');
+if(backBtn) {
+    backBtn.onclick = () => {
+        chatMain.style.display = 'none';
+        userListPage.style.display = 'block';
+    };
+}
+
+// User List keessatti "li" yeroo uumamu (Updated click logic)
+// socket.on('update-user-list', (users) => {
+//     usersOnlineList.innerHTML = '';
+//     users.forEach(user => {
+//         if (user.name !== currentUser.name) {
+//             const li = document.createElement('li');
+//             li.innerHTML = `
+//                 <img src="${user.profile}" class="header-avatar">
+//                 <div>
+//                     <strong style="display:block;">${user.name}</strong>
+//                     <span style="font-size:12px; color:gray;">Tap to chat</span>
+//                 </div>
+//             `;
+//             li.onclick = () => {
+//                 userListPage.style.display = 'none';
+//                 chatMain.style.display = 'flex'; // Block dhiisii flex godhi
+//                 chatAvatar.src = user.profile;
+//                 document.getElementById('chat-with-name').innerText = user.name;
+//             };
+//             usersOnlineList.appendChild(li);
+//         }
+//     });
+// });
 
 // 1. Button Edit yeroo tuqamu modal bani
 editBtn.onclick = () => {
@@ -62,7 +102,7 @@ saveEdit.onclick = () => {
     localStorage.setItem('chat-user-token', JSON.stringify(currentUser));
 
     // UI irratti jijjiiri
-    document.getElementById('name-input').value = newName;
+    document.getElementById('chat-with-name').innerText = newName;
     document.getElementById('chat-avatar').src = newProfile;
 
     // Server-tti beeksisi (Database akka jijjiiru)
@@ -340,4 +380,9 @@ socket.on('feedback', (data) => {
         }
     }
 });
-
+socket.on('load-old-messages', (messages) => {
+    messages.forEach(data =>{
+        const isOwnMessage = data.name === currentUser.name;
+        addMessageToUI(isOwnMessage, data);
+    });
+});

@@ -43,6 +43,9 @@ let onlineUsers = {};
 
 // Socket.IO Connection
 io.on('connection', (socket) => {
+    Message.find().sort({dateTime: 1}).limit(50).then(messages =>{
+        socket.emit('load-old-messages',messages);
+    })
     
     // --- AUTHENTICATION EVENTS ---
     socket.on('signup-user', async (userData) => {
@@ -91,6 +94,14 @@ io.on('connection', (socket) => {
 
     // --- CHAT MESSAGE LOGIC ---
     socket.on('chat-message', async (data) => {
+        const newMessage = new Message({
+            name: data.name,
+            message: data.message,
+            profile: data.profile,
+            dateTime: data.dateTime
+        });
+        await newMessage.save();
+        socket.broadcast.emit('chat-message', data);
         try {
             // Message database irratti save godhi (Yoo barbaadde)
             // const newMessage = new Message(data);

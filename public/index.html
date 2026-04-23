@@ -2,111 +2,120 @@
 <html>
 <head>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
-
     <link rel="stylesheet" href="style.css">
-   <!-- <link rel="stylesheet" 
-     href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css">
-     integrity="sha512-2SwdPD6INVrV/lHTZbO2nodKhrnDdJK9/kg2XD1r9uGqPo1cUbujc+IYdlYdEErWNu69gVcYgdxlmVmzTWnetw==" 
-     crossorigin="anonymous" referrerpolicy ="no-referrer">-->
     <title>HAILACHO_Chat_App</title>
-    
 </head>
 <body>
-    <div class="container">
-        <div id="signup-page">
-            <h2>signup</h2>
-            <form id="signup-form">
-                <div class="profile-upload">
-                    <label for="file-input"><img src="default-avatar.png" alt="" id="preview" style="width: 80px;height: 80px;border-radius: 50%;border: 1px solid #ccc;"></label>
-                    <input type="file" id="file-input" class="file-input" accept="image/*"
-                    style="display:none;">
-                    <!--<img src="${data.profilePic}" alt="Profile Picture" id="preview">-->
-                    <p>select profile photo</p>
-    
-                
-                </div>
-                <input type="text" id="username" placeholder="full name" required>
-                <input type="email" id="email" placeholder="email address" required>
-                <input type="password" id="confirm-password" placeholder="confirm password" required>
-                <button type="submit">create account</button>
-            </form>
-            <p>already have an account?<a href="#" onclick="showLogin()"> login here</a></p>
-        </div>
-         <div id="login-page" style="display:none;">
-            <h2>Login</h2>
-            <form id="login-form">
-                <input type="email" id="login-email" placeholder="Email Address" required>
-                <input type="password" id="login-password" placeholder="Password" required>
-                <button type="submit">Login</button>
-            </form>
-            <p>New here? <a href="#" onclick="showSignup()">Signup here</a></p>
-        </div>
 
-    </div>
- 
-  <!-- 2. USER LIST PAGE (Jalqaba ni dhokata) -->
-<!--<div id="user-list-page" style="display:none; text-align: center; padding: 20px;">
-       <h1 class="title">HAILU chat App🗨️</h1>
-    <h3>Select a friend to chat</h3>
-    <ul id="users-online" style="list-style: none; padding: 0; max-width: 400px; margin: auto;">
-         <h3 id="chat-with-name"></h3> 
-        <!-- Namoonni online jiran asitti mul'atu --
-    </ul>
-</div>-->
- <div id="user-list-page" style ="display: none;">
-            <div class="chat-header">
-                <h2>Chats</h2>
-                <i class="fas fa-user-edit" id="edit-profile-btn-list" style="cursor:pointer;"></i>
+<div class="container">
+
+    <!-- SIGNUP PAGE -->
+    <div id="signup-page">
+        <h2>signup</h2>
+        <form id="signup-form">
+            <div class="profile-upload">
+                <label for="file-input">
+                    <img src="default-avatar.png" alt="" id="preview" style="width: 80px;height: 80px;border-radius: 50%;border: 1px solid #ccc;">
+                </label>
+                <input type="file" id="file-input" class="file-input" accept="image/*" style="display:none;">
+                <p>select profile photo</p>
             </div>
-            <ul id="users-online" class="friend-list">
-                <h3 id="chat-with-name"></h3> 
-                <!-- Namoonni online jiran asitti mul'atu -->
-            </ul>
-        </div>
-    <div class="main" style="display: none;">
-        <div class="name">
-            
-    <!-- Icon namaa isa durii balleessiitii kana galchi -->
-    <span><img src="default-avatar.png" id="chat-avatar" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover; vertical-align: middle;"></span>
-    <input type="text" id="name-input" class="name-input" value="anonymous" maxlength="20">
 
-        <i class="fas fa-user-edit" id="edit-profile-btn" style="cursor:pointer; margin-left:10px; color:#555; font-size: 20px;"></i>
+            <input type="text" id="username" placeholder="full name" required>
+            <input type="email" id="email" placeholder="email address" required>
+            <input type="password" id="confirm-password" placeholder="confirm password" required>
+            <button type="submit">create account</button>
+        </form>
+        <p>already have an account?<a href="#" onclick="showLogin()"> login here</a></p>
     </div>
 
-          <!--  <input type="text" id="name-input" class="name-input" value="anonymous" maxlength="20">-->
-        </div style="display: none;">
-         <ul class="message-container" id="message-container">
-            <li class="message-left">
-                <p class="message">
-                    
-                    <span></span>
-                </p>
-            </li>
-            <li class="message-right">
-                <p class="message">
-                    
-                    <span></span>
-                </p>
-            </li>
-            <li class="message-feedback">
-                <p class="feedback" id="feedback">
-                    somebody is typing a message
-                </p>
-            </li>
-         </ul>
-         <form class="message-form" id="message-form">
-            <input type="text" name="message" id="message-input" class="message-input">
-            <div class="v-divider"></div>
-            <button type="submit" class="send-button"> <span>
-                <i class="fa-solid fa-paper-plane"></i>
-            </span></button>
-         </form>
-         <h3 class="clients-total" id="clients-total">Total clients:2</h3>
-         <!-- EDIT PROFILE MODAL -->
+    <!-- LOGIN PAGE -->
+    <div id="login-page" style="display:none;">
+        <h2>Login</h2>
+        <form id="login-form">
+            <input type="email" id="login-email" placeholder="Email Address" required>
+            <input type="password" id="login-password" placeholder="Password" required>
+            <button type="submit">Login</button>
+        </form>
+        <p>New here? <a href="#" onclick="showSignup()">Signup here</a></p>
+    </div>
+
+    <!-- USER LIST -->
+    <div id="user-list-page" style="display: none;">
+        <div class="app-header">
+            <img src="default-avatar.png" id="my-profile-img" class="header-avatar">
+            <h2>Chats</h2>
+            <i class="fas fa-camera"></i>
+        </div>
+
+        <div class="search-bar">
+            <input type="text" placeholder="Search friends..." id="search-input">
+        </div>
+
+        <ul id="users-online" class="friend-list">
+            <!-- users -->
+        </ul>
+    </div>
+
+    <!-- CHAT ROOM -->
+    <div class="app-container">
+        <div class="main" style="display:none;">
+        <div class="chat-header" style="display: flex; align-items: center; padding: 10px 15px; background: #fff; border-bottom: 1px solid #eee;">
+    
+    <!-- 1. Back Button -->
+    <i class="fas fa-arrow-left" id="back-btn" style="cursor:pointer; font-size: 18px;"></i>
+
+    <!-- 2. Profile Picture (Maqaa wajjiin akka walitti dhiyaatuuf margin-left xiqqoo qaba) -->
+    <img src="default-avatar.png" id="chat-avatar" class="header-avatar" style="width: 40px; height: 40px; margin-left: 12px; border-radius: 50%; object-fit: cover;">
+
+    <!-- 3. User Info (KANAAF 'flex: 1' kennina - Inni kun Icon edit mirga dhumatti dhiiba) -->
+    <div class="header-info" style="margin-left: 10px; flex: 1;">
+        <h4 id="chat-with-name" style="margin: 0; font-size: 16px; font-weight: bold;">Username</h4>
+        <p style="margin: 0; font-size: 11px; color: #27ae60;">Online</p>
+    </div>
+
+    <!-- 4. Edit Profile Button (Mirga dhumatti ofumaan hafa) -->
+    <i class="fas fa-user-edit" id="edit-profile-btn" style="cursor:pointer; color:#555; font-size: 20px;"></i>
+
+    <!-- 5. Name Input (HIDDEN godhi - Yoo Javascript barbaadeef qofa, bakka akka hin qabanneef) -->
+    <input type="hidden" id="name-input" value="anonymous">
+</div>
+
+
+
+            <ul class="message-container" id="message-container">
+                <li class="message-left">
+                    <p class="message"><span></span></p>
+                </li>
+                <li class="message-right">
+                    <p class="message"><span></span></p>
+                </li>
+                <li class="message-feedback">
+                    <p class="feedback" id="feedback">
+                        somebody is typing a message
+                    </p>
+                </li>
+            </ul>
+
+            <form class="message-form" id="message-form">
+                <input type="text" name="message" id="message-input" class="message-input">
+                <div class="v-divider"></div>
+                <button type="submit" class="send-button">
+                    <span><i class="fa-solid fa-paper-plane"></i></span>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <h3 class="clients-total" id="clients-total">Total clients:2</h3>
+
+</div> <!-- ✅ container properly closed -->
+
+<!-- EDIT PROFILE MODAL -->
 <div id="edit-profile-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:9999; justify-content:center; align-items:center;">
     <div style="background:white; padding:25px; border-radius:15px; width:90%; max-width:400px; text-align:center; position:relative;">
         <h3 style="margin-bottom:20px;">Edit Your Profile</h3>
-        
+
         <div class="edit-preview-container">
             <label for="edit-file-input">
                 <img id="edit-preview" src="default-avatar.png" style="width:100px; height:100px; border-radius:50%; border:2px solid #3498db; cursor:pointer; object-fit:cover;">
@@ -121,18 +130,17 @@
         </div>
 
         <div style="margin-top:20px; display:flex; gap:10px;">
-            <button id="save-edit-btn" style="flex:1; padding:12px; background:#27ae60; color:white; border:none; border-radius:5px; cursor:pointer; font-weight:bold;">Save Changes</button>
-            <button id="cancel-edit-btn" style="flex:1; padding:12px; background:#e74c3c; color:white; border:none; border-radius:5px; cursor:pointer; font-weight:bold;">Cancel</button>
+            <button id="save-edit-btn" style="flex:1;">Save Changes</button>
+            <button id="cancel-edit-btn" style="flex:1;">Cancel</button>
         </div>
     </div>
 </div>
 
-    </div>
-   <audio id="message-tone" src="universfield-new-notification-021-370045.mp3"></audio>
-   <!--- <button id="notif-btn" style="display:none; margin: 10px auto; display: block;">Notification Hojjechiisi</button>--> 
-    <script src="/socket.io/socket.io.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.30.1/moment.min.js"></script>
-    <script src="main.js"></script>
-</body>
+<audio id="message-tone" src="universfield-new-notification-021-370045.mp3"></audio>
 
+<script src="/socket.io/socket.io.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.30.1/moment.min.js"></script>
+<script src="main.js"></script>
+
+</body>
 </html>
