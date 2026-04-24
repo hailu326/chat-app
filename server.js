@@ -1,21 +1,28 @@
 // App & Server Setup (Isa dura ture)
 require('dotenv').config();
 const express = require('express');
+const http = require('http');
 const path = require('path');
 const db = require('./config/dbConfig');
 const mongoose = require('mongoose');
 const PORT = process.env.PORT || 3000;
 const app = express();
-const server = app.listen(PORT, "0.0.0.0", () => {
+const server = http.createServer(app);
+server.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on port ${PORT}`);
 });
-const io = require('socket.io')(server);
+const io = require('socket.io')(server,{
+    cors: {
+        origin: "*",
+        methods: ["GET", "POST"]
+    }
+});
 
 // MongoDB Connection (Isa dura ture)
-const dbURI = 'mongodb+srv://hailutadese786_db_user:Hailu3025@cluster0.lpba7lj.mongodb.net/?appName=Cluster0';
-mongoose.connect(dbURI, { useNewUrlParser: true, useUnifiedTopology: true })
-    .then(() => console.log('Connected to DB'))
-    .catch(err => console.log('DB Connection Error:', err));
+// onst dbURI = 'mongodb+srv://hailutadese786_db_user:Hailu3025@cluster0.lpba7lj.mongodb.net/?appName=Cluster0';
+// mongoose.connect(dbURI, { useNewUrlParser: true, useUnifiedTopology: true })
+//     .then(() =c> console.log('Connected to DB'))
+//     .catch(err => console.log('DB Connection Error:', err));
 
 // Schemas (User Schema olitti Message Schema gadii)
 const userSchema = new mongoose.Schema({
