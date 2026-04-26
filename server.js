@@ -3,6 +3,7 @@ require('dotenv').config();
 const express = require('express');
 const http = require('http');
 const path = require('path');
+const multer = require('multer');
 const db = require('./config/dbConfig');
 const mongoose = require('mongoose');
 const PORT = process.env.PORT || 3000;
@@ -37,13 +38,33 @@ const messageSchema = new mongoose.Schema({
     name: String,
     message: String,
     profile: String,
-    dateTime: Date
+    dateTime: Date,
+    fileUrl: String,
+    fileName: String,
+    fileType: String
 });
 const Message = mongoose.model('Message', messageSchema);
 
 // Middleware (Static files)
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json()); // JSON data barbaaduuf
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => cb(null, path.join(__dirname, 'uploads')),
+    filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname)
+});
+
+const upload = multer({ storage });
+
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+app.post('/uploads', upload.single('file'), (req, res) => {
+    if (!req.file) return res.status(400).send("No file");
+
+    res.json({
+        fileUrl: `http://localhost:3000/uploads/${req.file.filename}`,
+        fileName: req.file.originalname
+    });
+});
 
 // Online Users Management
 let onlineUsers = {};
@@ -101,21 +122,25 @@ io.on('connection', (socket) => {
 
     // --- CHAT MESSAGE LOGIC ---
     socket.on('chat-message', async (data) => {
+        data.socketId = socket.id;
         const newMessage = new Message({
             name: data.name,
             message: data.message,
             profile: data.profile,
-            dateTime: data.dateTime
+            dateTime: data.dateTime,
+            fileUrl: data.fileUrl,
+            fileName: data.fileName,
+            fileType: data.fileType
         });
         await newMessage.save();
-        socket.broadcast.emit('chat-message', data);
+        io.emit('chat-message', data);
         try {
             // Message database irratti save godhi (Yoo barbaadde)
             // const newMessage = new Message(data);
             // await newMessage.save();
 
             // Ergaa nama hundaaf dabarsi (Broadcast)
-            socket.broadcast.emit('chat-message', data);
+           //socket.broadcast.emit('chat-message', data);
 
         } catch (err) {
             console.log("Error saving message:", err);

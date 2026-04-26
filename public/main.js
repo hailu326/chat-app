@@ -134,6 +134,15 @@ fileInput.onchange = function(evt) {
         reader.readAsDataURL(file);
     }
 };
+fileInput.addEventListener('change', () => {
+    if (fileInput.files.length > 0) {
+        const file = fileInput.files[0];
+        if (file) {previewImg.src = URL.createObjectURL(file);
+
+        }
+                sendMessage();
+    }
+});
 
 // 2. SIGNUP LOGIC
 signupForm.addEventListener('submit', (e) => {
@@ -228,23 +237,45 @@ socket.on('clients-total', (data) => {
     clientsTotal.innerText = `Total clients: ${data}`;
 });
 
-function sendMessage() {
-    if (messageInput.value.trim() === '') return; // Ergaa duwwaa hin ergin
+async function sendMessage() {
+    let fileData = null;
+
+if (fileInput.files.length > 0) {
+    const formData = new FormData();
+    formData.append('file', fileInput.files[0]);
+
+    const res = await fetch('http://localhost:3000/uploads',{
+        method: 'POST',
+        body: formData
+    });
+
+    if (!res.ok) {
+    console.log("Upload failed");
+    return;
+}
+fileData = await res.json();
+}
+    if (messageInput.value.trim() === '' && fileInput.files.length === 0) return; // Ergaa duwwaa hin ergin
     
     const data = {
         name: currentUser.name,
         message: messageInput.value,
         profile: currentUser.profile,
-        dateTime: new Date()
+        dateTime: new Date(),
+
+        type: fileData ? 'file' : 'text',
+       fileUrl: fileData ? fileData.fileUrl : null,
+       fileName: fileData ? fileData.fileName : null
     };
     
     socket.emit('chat-message', data);
     addMessageToUI(true, data);
     messageInput.value = '';
+    fileInput.value = '';
 }
-
+socket.off('chat-message');
 socket.on('chat-message', (data) => {
-    if(data.name === nameInput.value) return; // Ergaa ofiitii yoo ta'e hin fudhatin
+    if(data.name === currentUser.name) return; // Ergaa ofiitii yoo ta'e hin fudhatin
     
     messageTone.play();
     addMessageToUI(false, data); // Kanaafuu `false` godhi, kan birootii waan ta'eef
@@ -259,15 +290,32 @@ socket.on('chat-message', (data) => {
 
 function addMessageToUI(isOwnMessage, data) {
     clearFeedback(); // Feedback delete godhi
-    
+    let fileContent = '';
+
+if (data.type === 'file' && data.fileUrl) {
+
+    if (data.fileUrl.match(/\.(jpg|jpeg|png|gif)$/)) {
+        fileContent = `<img src="${data.fileUrl}" style="max-width:200px;">`;
+    } 
+    else if (data.fileUrl.match(/\.(mp4|webm)$/)) {
+        fileContent = `
+        <video controls style="max-width:200px;">
+            <source src="${data.fileUrl}">
+        </video>`;
+    } 
+    else {
+        fileContent = `<a href="${data.fileUrl}" download>${data.fileName}</a>`;
+    }
+}
     const element = `
             <li class="${isOwnMessage ? 'message-right' : 'message-left'}" style="list-style: none;">
                 <div style="display: flex; align-items: flex-end; flex-direction: ${isOwnMessage ? 'row-reverse' : 'row'}; margin-bottom: 10px;">
                     <!-- Suuraa Profile (Sarara 114) -->
-                    <img src="${data.profile}" style="width: 35px; height: 35px; border-radius: 50%; margin: 0 8px; object-fit: cover;">
+                    <img src="${data.profile || 'default-avatar.png'}" style="width: 35px; height: 35px; border-radius: 50%; margin: 0 8px; object-fit: cover;">
                     
                     <!-- Bubble Ergaa (Sarara 115-118) -->
                     <div style="background: ${isOwnMessage ? '#2d2d2d' : '#fff'}; color: ${isOwnMessage ? '#fff' : '#000'}; padding: 10px 15px; border-radius: 20px; max-width: 250px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+                        ${fileContent}
                         <p style="margin: 0;">${data.message}</p>
                         <!-- Sarara 117: Maqaan keessaa badeera, yeroo qofatu hafe -->
                         <span style="font-size: 10px; opacity: 0.6; display: block; margin-top: 5px; text-align: right;">

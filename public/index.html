@@ -98,7 +98,18 @@
             </ul>
 
             <form class="message-form" id="message-form">
-                <input type="text" name="message" id="message-input" class="message-input">
+                <input type="text" name="message" id="message-input" class="message-input" placeholder="Type a message...">
+                  <div class="v-divider"></div> 
+                <label for="file-input" class="file-icon">
+    <i class="fa fa-paperclip"></i>
+</label>
+
+<input 
+    type="file" 
+    id="file-input" 
+    style="display:none;"
+    accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.zip,.rar"
+/>
                 <div class="v-divider"></div>
                 <button type="submit" class="send-button">
                     <span><i class="fa-solid fa-paper-plane"></i></span>
