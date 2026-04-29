@@ -24,16 +24,45 @@ const editBtn = document.getElementById('edit-profile-btn');
 const cancelEdit = document.getElementById('cancel-edit-btn');
 const saveEdit = document.getElementById('save-edit-btn');
 const editNameField = document.getElementById('edit-name-input');
+const editPhoneField = document.getElementById('edit-phone-input')
+const editPasswordField = document.getElementById('edit-password-input');
 const editPreview = document.getElementById('edit-preview');
 const editFileInp = document.getElementById('edit-file-input');
-// function showPage(page) {
-//     signupPage.style.display = 'none';
-//     loginPage.style.display = 'none';
-//     userListPage.style.display = 'none';
-//     chatMain.style.display = 'none';
+document.getElementById('voice-call-btn').onclick = () => {
+    startVoiceCall();
+};
 
-//     page.style.display = 'block';
-// }
+document.getElementById('video-call-btn').onclick = () => {
+    startVideoCall();
+};
+document.getElementById('camera-btn').onclick = () => {
+    document.getElementById('camera-input').click();
+};
+const cameraInp = document.getElementById('camera-input');
+const cameraBtn = document.getElementById('camera-btn');
+
+cameraBtn.onclick = () => {
+    cameraInp.click();
+};
+
+cameraInp.onchange = function() {
+    const file = this.files[0];
+    if (file) {
+        const fileURL = URL.createObjectURL(file);
+        
+        // Preview agarsiisuuf (previewImg kanaan dura qabda ta'a)
+        if (previewImg) {
+            previewImg.src = fileURL;
+            previewImg.style.display = 'block';
+        }
+
+        // Amma 'sendMessage()' waamuu dandeessa ykn namni 'Send' akka cuqaasu eeguu dandeessa
+        console.log("File captured: ", file.name);
+    }
+};
+
+
+
 // Button "Back" (Gara User List-itti deebi'uuf)
 const backBtn = document.getElementById('back-btn');
 if(backBtn) {
@@ -72,6 +101,8 @@ editBtn.onclick = () => {
     editModal.style.display = 'flex';
     editNameField.value = currentUser.name;
     editPreview.src = currentUser.profile;
+    editPhoneField.value = currentUser.editPhoneField;
+    editPasswordField.value = currentUser .editPasswordField;
 };
 
 // 2. Modal cufi
@@ -91,13 +122,15 @@ editFileInp.onchange = function() {
 saveEdit.onclick = () => {
     const newName = editNameField.value;
     const newProfile = editPreview.src;
+    const newPhone = editPhoneField.value;
+    const newPassword = editPasswordField.value;
 
     if (newName.trim() === "") return alert("Maqaa galchi!");
 
     // currentUser Update godhi
     currentUser.name = newName;
     currentUser.profile = newProfile;
-
+    currentUser.phone = newPhone;
     // LocalStorage update godhi
     localStorage.setItem('chat-user-token', JSON.stringify(currentUser));
 
@@ -123,26 +156,18 @@ window.addEventListener('load', () => {
 
 
 
-fileInput.onchange = function(evt) {
-    const [file] = this.files;
-    if (file) {
-        const reader =new FileReader();
-            reader.onload =function(e){
-                previewImg.src = e.target.result;
-                if(currentUser) currentUser.profile = e.target.result;
-            }
-        reader.readAsDataURL(file);
-    }
-};
-fileInput.addEventListener('change', () => {
-    if (fileInput.files.length > 0) {
-        const file = fileInput.files[0];
-        if (file) {previewImg.src = URL.createObjectURL(file);
 
-        }
-                sendMessage();
-    }
+fileInput.addEventListener('change', function () {
+    const file = this.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function (e) {
+        previewImg.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
 });
+sendMessage();
 
 // 2. SIGNUP LOGIC
 signupForm.addEventListener('submit', (e) => {
@@ -164,8 +189,7 @@ signupForm.addEventListener('submit', (e) => {
     enterUserList(); 
 
 
-    //chatTitle.style.display = 'block'; // Chat Room mul'isi
-   // chatMain.style.display = 'block';
+  
     if (clientsTotal) clientsTotal.style.display = 'block'; // ClientsTotal jira ta'e mul'isi
 });
 
@@ -202,7 +226,7 @@ socket.on('auth-success', (userData) => {
 
 function enterUserList() {
     signupPage.style.display = 'none';
-    chatMain.style.display = 'none';
+    chatMain.style.display = 'block';
     if(loginPage) loginPage.style.display = 'none';
     userListPage.style.display = 'block';
     nameInput.value = currentUser.name;
@@ -238,44 +262,56 @@ socket.on('clients-total', (data) => {
 });
 
 async function sendMessage() {
-    let fileData = null;
-
-if (fileInput.files.length > 0) {
-    const formData = new FormData();
-    formData.append('file', fileInput.files[0]);
-
-    const res = await fetch('http://localhost:3000/uploads',{
-        method: 'POST',
-        body: formData
-    });
-
-    if (!res.ok) {
-    console.log("Upload failed");
+    if (!currentUser) {
+    alert("Please login first");
     return;
 }
-fileData = await res.json();
-}
-    if (messageInput.value.trim() === '' && fileInput.files.length === 0) return; // Ergaa duwwaa hin ergin
+    let fileData = null;
+
+    // 1. File yoo jiraate dura upload godhi
+    if (fileInput.files.length > 0) {
+        const formData = new FormData();
+        formData.append('file', fileInput.files[0]);
+
+        // HUBADHU: Mobile-n akka arguuf 'localhost' bakka IP address computer keetiin buusi
+        const res = await fetch('http://localhost:3000/uploads', {
+            method: 'POST',
+            body: formData
+        });
+
+        if (res.ok) {
+            fileData = await res.json();
+        } else {
+            console.log("Upload failed");
+            return;
+        }
+    }
+
+    // Ergaa duwwaa yoo ta'e dhiisi
+    if (messageInput.value.trim() === '' && !fileData) return;
     
     const data = {
         name: currentUser.name,
         message: messageInput.value,
-        profile: currentUser.profile,
+        profile: currentUser.profile || '/default-avatar.png', // Profile nama ergee qofa
         dateTime: new Date(),
-
         type: fileData ? 'file' : 'text',
-       fileUrl: fileData ? fileData.fileUrl : null,
-       fileName: fileData ? fileData.fileName : null
+        fileUrl: fileData ? fileData.fileUrl : null, // Fakkii/Vidiyoo ergame
+        fileName: fileData ? fileData.fileName : null
     };
     
     socket.emit('chat-message', data);
-    addMessageToUI(true, data);
+    addMessageToUI(true, data); // Ofuma keetiif agarsiisi
+
+    // 2. Erga ergitee booda qulqulleessi (Reset)
     messageInput.value = '';
     fileInput.value = '';
+    if (typeof previewImg !== 'undefined') previewImg.src = "/default-avatar.png"; 
 }
+
 socket.off('chat-message');
 socket.on('chat-message', (data) => {
-    if(data.name === currentUser.name) return; // Ergaa ofiitii yoo ta'e hin fudhatin
+    //if (data.userId === socket.id) return;// Ergaa ofiitii yoo ta'e hin fudhatin
     
     messageTone.play();
     addMessageToUI(false, data); // Kanaafuu `false` godhi, kan birootii waan ta'eef
@@ -289,45 +325,62 @@ socket.on('chat-message', (data) => {
 });
 
 function addMessageToUI(isOwnMessage, data) {
-    clearFeedback(); // Feedback delete godhi
+    clearFeedback(); 
     let fileContent = '';
 
-if (data.type === 'file' && data.fileUrl) {
+    // 1. Media Type Check (Image, Video, Audio, PDF)
+    if (data.type === 'file' && data.fileUrl) {
+        const fileExt = data.fileUrl.split('.').pop().toLowerCase();
 
-    if (data.fileUrl.match(/\.(jpg|jpeg|png|gif)$/)) {
-        fileContent = `<img src="${data.fileUrl}" style="max-width:200px;">`;
-    } 
-    else if (data.fileUrl.match(/\.(mp4|webm)$/)) {
-        fileContent = `
-        <video controls style="max-width:200px;">
-            <source src="${data.fileUrl}">
-        </video>`;
-    } 
-    else {
-        fileContent = `<a href="${data.fileUrl}" download>${data.fileName}</a>`;
+        if (['jpg', 'jpeg', 'png', 'gif'].includes(fileExt)) {
+            fileContent = `<img src="${data.fileUrl}" style="max-width:100%; border-radius:10px; display:block; margin-bottom:5px;">`;
+        } 
+        else if (['mp4', 'webm'].includes(fileExt)) {
+            fileContent = `
+            <video controls style="max-width:100%; border-radius:10px; display:block; margin-bottom:5px;">
+                <source src="${data.fileUrl}">
+            </video>`;
+        } 
+        else {
+            fileContent = `<div style="background:#f1f1f1; padding:8px; border-radius:5px; margin-bottom:5px;">
+                <a href="${data.fileUrl}" target="_blank" download style="color:#007bff; font-weight:bold; text-decoration:none;">
+                    📄 ${data.fileName || 'View File'}
+                </a>
+            </div>`;
+        }
     }
-}
+
+    // 2. UI Layout (Akkuma suuraa 2ffaa sanaatti bareechuuf)
     const element = `
-            <li class="${isOwnMessage ? 'message-right' : 'message-left'}" style="list-style: none;">
-                <div style="display: flex; align-items: flex-end; flex-direction: ${isOwnMessage ? 'row-reverse' : 'row'}; margin-bottom: 10px;">
-                    <!-- Suuraa Profile (Sarara 114) -->
-                    <img src="${data.profile || 'default-avatar.png'}" style="width: 35px; height: 35px; border-radius: 50%; margin: 0 8px; object-fit: cover;">
-                    
-                    <!-- Bubble Ergaa (Sarara 115-118) -->
-                    <div style="background: ${isOwnMessage ? '#2d2d2d' : '#fff'}; color: ${isOwnMessage ? '#fff' : '#000'}; padding: 10px 15px; border-radius: 20px; max-width: 250px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
-                        ${fileContent}
-                        <p style="margin: 0;">${data.message}</p>
-                        <!-- Sarara 117: Maqaan keessaa badeera, yeroo qofatu hafe -->
-                        <span style="font-size: 10px; opacity: 0.6; display: block; margin-top: 5px; text-align: right;">
-                            ${moment(data.dateTime).format('LT')}
-                        </span>
-                    </div>
-                </div>
-            </li>`;
+        <li class="${isOwnMessage ? 'message-right' : 'message-left'}" style="list-style:none; margin-bottom:15px; display:flex; flex-direction: ${isOwnMessage ? 'row-reverse' : 'row'}; align-items: flex-end;">
+            
+            <!-- PROFILE: data.profile qofa fayyadamna -->
+            <img src="${data.profile || 'default-avatar.png'}" style="width: 35px; height: 35px; border-radius: 50%; margin: 0 8px; object-fit: cover;">
+            
+            <div style="background: ${isOwnMessage ? '#dcf8c6' : '#ffffff'}; 
+                        color: #000; 
+                        padding: 10px 15px; 
+                        border-radius: ${isOwnMessage ? '15px 15px 0 15px' : '15px 15px 15px 0'}; 
+                        max-width: 250px; 
+                        box-shadow: 0 1px 2px rgba(0,0,0,0.2);">
+                
+                <span style="font-size: 11px; font-weight: bold; color: #555; display: block; margin-bottom: 3px;">${data.name}</span>
+                
+                ${fileContent} <!-- Image/Video asitti bama -->
+                
+                <p style="margin: 0; word-wrap: break-word;">${data.message || ''}</p>
+                
+                <span style="font-size: 10px; opacity: 0.6; display: block; text-align: right; margin-top: 5px;">
+                    ${moment(data.dateTime).format('LT')}
+                </span>
+            </div>
+        </li>`;
 
     messageContainer.innerHTML += element;
     scrollToBottom();
 }
+
+
 socket.on('update-user-list', (users) => {
     const userListUI = document.getElementById('users-online'); // ID kana HTML irratti mirkaneessi
     if (!userListUI) return; 
@@ -434,3 +487,16 @@ socket.on('load-old-messages', (messages) => {
         addMessageToUI(isOwnMessage, data);
     });
 });
+function startVoiceCall() {
+    socket.emit('voice-call-request', {
+        from: currentUser,
+        to: document.getElementById('chat-with-name').innerText
+    });
+}
+
+function startVideoCall() {
+    socket.emit('video-call-request', {
+        from: currentUser,
+        to: document.getElementById('chat-with-name').innerText
+    });
+}
