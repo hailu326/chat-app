@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html>
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
     <link rel="stylesheet" href="style.css">
     <title>HAILACHO_Chat_App</title>
@@ -22,7 +24,7 @@
             </div>
 
             <input type="text" id="username" placeholder="full name" required>
-            <input type="number" id="phone " placeholder="phone number" required>
+            <input type="tel" id="phone" placeholder="phone number" required>
             <input type="email" id="email" placeholder="email address" required>
             <input type="password" id="password" placeholder="password" required>
             <input type="password" id="confirm-password" placeholder="confirm password" required>
@@ -42,13 +44,13 @@
         <p>New here? <a href="#" onclick="showSignup()">Signup here</a></p>
     </div>
 
-    <!-- USER LIST -->
-    <div id="user-list-page" style="display: none;">
+    <!-- USER LIST (BITAA) -->
+    <div id="user-list-page">
         <div class="app-header">
             <img src="default-avatar.png" id="my-profile-img" class="header-avatar">
             <h2>Chats</h2>
-            <i class="fas fa-camera"></i>
-              <i class="fas fa-user-edit" id="edit-profile-btn" style="cursor:pointer; color:#555; font-size: 20px;"></i>
+            <!-- camera icon removed: only edit profile icon stays -->
+            <i class="fas fa-user-edit" id="edit-profile-btn" style="cursor:pointer; color:#555; font-size: 20px;"></i>
         </div>
 
         <div class="search-bar">
@@ -60,66 +62,48 @@
         </ul>
     </div>
 
-    <!-- CHAT ROOM -->
+    <!-- CHAT ROOM (MIRGA) -->
     <div class="app-container">
-        <div class="main" style="display:none;">
-        <div class="chat-header" style="display: flex; align-items: center; padding: 10px 15px; background: #fff; border-bottom: 1px solid #eee;">
-    
-    <!-- 1. Back Button -->
-    <i class="fas fa-arrow-left" id="back-btn" style="cursor:pointer; font-size: 18px;"></i>
+        <div class="main">
+            <div class="chat-header" style="display: flex; align-items: center; padding: 10px 15px; background: #fff; border-bottom: 1px solid #eee;">
+                <i class="fas fa-arrow-left" id="back-btn" style="cursor:pointer; font-size: 18px;"></i>
 
-    <!-- 2. Profile Picture (Maqaa wajjiin akka walitti dhiyaatuuf margin-left xiqqoo qaba) -->
-    <img src="default-avatar.png" id="chat-avatar" class="header-avatar" style="width: 40px; height: 40px; margin-left: 12px; border-radius: 50%; object-fit: cover;">
+                <img src="default-avatar.png" id="chat-avatar" class="header-avatar" style="width: 40px; height: 40px; margin-left: 12px; border-radius: 50%; object-fit: cover;">
 
-    <!-- 3. User Info (KANAAF 'flex: 1' kennina - Inni kun Icon edit mirga dhumatti dhiiba) -->
-    <div class="header-info" style="margin-left: 10px; flex: 1;">
-        <h4 id="chat-with-name" style="margin: 0; font-size: 16px; font-weight: bold;">Username</h4>
-        <p style="margin: 0; font-size: 11px; color: #27ae60;">Online</p>
-    </div>
-      <div class="call-buttons">
-        <button id="voice-call-btn">📞</button>
-        <button id="video-call-btn">🎥</button>
-    </div>
-    <!-- 4. Edit Profile Button (Mirga dhumatti ofumaan hafa) -->
-  
+                <div class="header-info" style="margin-left: 10px; flex: 1;">
+                    <h4 id="chat-with-name" style="margin: 0; font-size: 16px; font-weight: bold;">Username</h4>
+                    <p style="margin: 0; font-size: 11px; color: #27ae60;">Online</p>
+                </div>
 
-    <!-- 5. Name Input (HIDDEN godhi - Yoo Javascript barbaadeef qofa, bakka akka hin qabanneef) -->
-    <input type="hidden" id="name-input" value="anonymous">
-</div>
+                <div class="call-buttons">
+                    <button id="voice-call-btn">📞</button>
+                    <button id="video-call-btn">🎥</button>
+                </div>
 
+                <input type="hidden" id="name-input" value="anonymous">
+            </div>
 
+            <ul class="message-container" id="message-container"></ul>
 
-            <ul class="message-container" id="message-container">
-                <li class="message-left">
-                    <p class="message"><span></span></p>
-                </li>
-                <li class="message-right">
-                    <p class="message"><span></span></p>
-                </li>
-                <li class="message-feedback">
-                    <p class="feedback" id="feedback">
-                        somebody is typing a message
-                    </p>
-                </li>
-            </ul>
+            <!-- FILE PREVIEW (shows after you choose a file, like Telegram) -->
+            <div class="file-preview" id="file-preview">
+                <div id="file-preview-thumb">📄</div>
+                <div class="file-preview-info">
+                    <div id="file-preview-name"></div>
+                    <div id="file-preview-size"></div>
+                </div>
+                <button type="button" id="file-preview-cancel" title="Remove file">✖</button>
+            </div>
 
             <form class="message-form" id="message-form">
-                <input type="text" name="message" id="message-input" class="message-input" placeholder="Type a message...">
-                <input type="file" id="camera-input"accept="image/*" capture="environment"hidden>
-                <button id="camera-btn" style="padding: 10px;font-size: 20px;">📷</button>
-                  <div class="v-divider"></div> 
-                <label for="file-input" class="file-icon">
-    <i class="fa fa-paperclip"></i>
-</label>
+                <label for="attachment-file-input" class="file-icon">
+                    <i class="fa fa-paperclip"></i>
+                </label>
+                <!-- no "accept" and no "capture": any file type is allowed -->
+                <input type="file" id="attachment-file-input" style="display:none;" />
 
-<input 
-    type="file" 
-    id="file-input" 
-    style="display:none;"
-    accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.zip,.rar*" capture="camera"
-/>
-<!-- <img id="preview-img" src="default-avatar.png" alt="Preview" style="width:100px; height:100px; border-radius:50%; border:2px solid #3498db; cursor:pointer; object-fit:cover;"> -->
-                <div class="v-divider"></div>
+                <input type="text" name="message" id="message-input" class="message-input" placeholder="Type a message..." autocomplete="off">
+
                 <button type="submit" class="send-button">
                     <span><i class="fa-solid fa-paper-plane"></i></span>
                 </button>
@@ -129,7 +113,7 @@
 
     <h3 class="clients-total" id="clients-total">Total clients:2</h3>
 
-</div> <!-- ✅ container properly closed -->
+</div> <!-- container closed -->
 
 <!-- EDIT PROFILE MODAL -->
 <div id="edit-profile-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:9999; justify-content:center; align-items:center;">
@@ -151,7 +135,7 @@
 
         <div style="margin-top:15px;">
             <label style="display:block; text-align:left; font-size:14px; font-weight:bold;">phone number:</label>
-            <input type="number" id="edit-phone-input" style="width:100%; padding:10px; margin-top:5px; border:1px solid #ccc; border-radius:5px;">
+            <input type="tel" id="edit-phone-input" style="width:100%; padding:10px; margin-top:5px; border:1px solid #ccc; border-radius:5px;">
         </div>
 
         <div style="margin-top:15px;">

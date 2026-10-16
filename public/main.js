@@ -1,217 +1,252 @@
-// 1. ELEMENTOOTA HUNDA GUBBAA IRRATTI TOKKO QOFA DECLARE GODHI
+// ============================================================
+// HAILACHO CHAT APP - main.js (v2)
+// NEW: send ANY file with a caption (like Telegram), no camera button
+// ============================================================
 const socket = io();
+
+// ---------- ELEMENTS ----------
+const container = document.querySelector('.container');
 const signupForm = document.getElementById('signup-form');
 const signupPage = document.getElementById('signup-page');
-const chatMain = document.querySelector('.main');
-const chatTitle = document.querySelector('.title');
+const loginPage = document.getElementById('login-page');
+const loginForm = document.getElementById('login-form');
 const clientsTotal = document.getElementById('clients-total');
 const nameInput = document.getElementById('name-input');
 const messageForm = document.getElementById('message-form');
 const messageInput = document.getElementById('message-input');
 const messageContainer = document.getElementById('message-container');
 const messageTone = document.getElementById('message-tone');
-const fileInput = document.getElementById('file-input');
+const fileInput = document.getElementById('file-input');          // profile photo (signup)
 const previewImg = document.getElementById('preview');
 const chatAvatar = document.getElementById('chat-avatar');
-const loginPage = document.getElementById('login-page');
-const loginForm = document.getElementById('login-form');
-const userListPage = document.getElementById('user-list-page');
-const usersOnlineList = document.getElementById('users-online');
-let currentUser = null; // Eenyummaa nama seenee qabachuuf
-// Elementoota Edit Profile
+const userListUI = document.getElementById('users-online');
+const backBtn = document.getElementById('back-btn');
+const sendBtn = document.querySelector('.send-button');
+
+// File sending
+const attachmentInput = document.getElementById('attachment-file-input');
+const filePreview = document.getElementById('file-preview');
+const filePreviewThumb = document.getElementById('file-preview-thumb');
+const filePreviewName = document.getElementById('file-preview-name');
+const filePreviewSize = document.getElementById('file-preview-size');
+const filePreviewCancel = document.getElementById('file-preview-cancel');
+
+// Edit profile
 const editModal = document.getElementById('edit-profile-modal');
 const editBtn = document.getElementById('edit-profile-btn');
 const cancelEdit = document.getElementById('cancel-edit-btn');
 const saveEdit = document.getElementById('save-edit-btn');
 const editNameField = document.getElementById('edit-name-input');
-const editPhoneField = document.getElementById('edit-phone-input')
+const editPhoneField = document.getElementById('edit-phone-input');
 const editPasswordField = document.getElementById('edit-password-input');
 const editPreview = document.getElementById('edit-preview');
 const editFileInp = document.getElementById('edit-file-input');
-document.getElementById('voice-call-btn').onclick = () => {
-    startVoiceCall();
-};
 
-document.getElementById('video-call-btn').onclick = () => {
-    startVideoCall();
-};
-document.getElementById('camera-btn').onclick = () => {
-    document.getElementById('camera-input').click();
-};
-const cameraInp = document.getElementById('camera-input');
-const cameraBtn = document.getElementById('camera-btn');
+const MAX_FILE_SIZE = 50 * 1024 * 1024;   // 50 MB (must match server.js)
 
-cameraBtn.onclick = () => {
-    cameraInp.click();
-};
+let currentUser = null;
+let pendingFile = null;      // the file chosen with the paperclip
+let previewObjectUrl = null;
+let isSending = false;
+let oldMessages = [];
+let isTabActive = true;
 
-cameraInp.onchange = function() {
-    const file = this.files[0];
-    if (file) {
-        const fileURL = URL.createObjectURL(file);
-        
-        // Preview agarsiisuuf (previewImg kanaan dura qabda ta'a)
-        if (previewImg) {
-            previewImg.src = fileURL;
-            previewImg.style.display = 'block';
-        }
-
-        // Amma 'sendMessage()' waamuu dandeessa ykn namni 'Send' akka cuqaasu eeguu dandeessa
-        console.log("File captured: ", file.name);
-    }
-};
-
-
-
-// Button "Back" (Gara User List-itti deebi'uuf)
-const backBtn = document.getElementById('back-btn');
-if(backBtn) {
-    backBtn.onclick = () => {
-        chatMain.style.display = 'none';
-        userListPage.style.display = 'block';
-    };
+// ---------- HELPERS ----------
+function escapeHtml(text) {
+    return String(text == null ? '' : text)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
 }
 
-// User List keessatti "li" yeroo uumamu (Updated click logic)
-// socket.on('update-user-list', (users) => {
-//     usersOnlineList.innerHTML = '';
-//     users.forEach(user => {
-//         if (user.name !== currentUser.name) {
-//             const li = document.createElement('li');
-//             li.innerHTML = `
-//                 <img src="${user.profile}" class="header-avatar">
-//                 <div>
-//                     <strong style="display:block;">${user.name}</strong>
-//                     <span style="font-size:12px; color:gray;">Tap to chat</span>
-//                 </div>
-//             `;
-//             li.onclick = () => {
-//                 userListPage.style.display = 'none';
-//                 chatMain.style.display = 'flex'; // Block dhiisii flex godhi
-//                 chatAvatar.src = user.profile;
-//                 document.getElementById('chat-with-name').innerText = user.name;
-//             };
-//             usersOnlineList.appendChild(li);
-//         }
-//     });
-// });
+function formatSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
 
-// 1. Button Edit yeroo tuqamu modal bani
-editBtn.onclick = () => {
-    editModal.style.display = 'flex';
-    editNameField.value = currentUser.name;
-    editPreview.src = currentUser.profile;
-    editPhoneField.value = currentUser.editPhoneField;
-    editPasswordField.value = currentUser .editPasswordField;
-};
+// make a profile photo small so it fits in the socket message
+function resizeImage(file, maxSize, callback) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+            const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
+            const canvas = document.createElement('canvas');
+            canvas.width = img.width * scale;
+            canvas.height = img.height * scale;
+            canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+            callback(canvas.toDataURL('image/jpeg', 0.8));
+        };
+        img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+}
 
-// 2. Modal cufi
-cancelEdit.onclick = () => editModal.style.display = 'none';
+function showLogin() {
+    signupPage.style.display = 'none';
+    loginPage.style.display = 'block';
+}
 
-// 3. Suuraa jijjiiruu (Preview)
-editFileInp.onchange = function() {
-    const file = this.files[0];
-    if (file) {
-        const reader = new FileReader();
-        reader.onload = (e) => editPreview.src = e.target.result;
-        reader.readAsDataURL(file);
+function showSignup() {
+    loginPage.style.display = 'none';
+    signupPage.style.display = 'block';
+}
+
+function openChatView() {
+    container.classList.add('chat-open');
+}
+
+function closeChatView() {
+    container.classList.remove('chat-open');
+}
+
+function scrollToBottom() {
+    messageContainer.scrollTo(0, messageContainer.scrollHeight);
+}
+
+function clearFeedback() {
+    const el = document.querySelector('.message-feedback');
+    if (el) el.remove();
+}
+
+messageContainer.innerHTML = '';
+
+// ---------- CALL BUTTONS ----------
+document.getElementById('voice-call-btn').onclick = () => startVoiceCall();
+document.getElementById('video-call-btn').onclick = () => startVideoCall();
+
+// ---------- FILE PICKER (PAPERCLIP) ----------
+function showFilePreview(file) {
+    pendingFile = file;
+    filePreviewName.textContent = file.name;
+    filePreviewSize.textContent = formatSize(file.size);
+
+    if (previewObjectUrl) {
+        URL.revokeObjectURL(previewObjectUrl);
+        previewObjectUrl = null;
     }
+
+    if (file.type.startsWith('image/')) {
+        previewObjectUrl = URL.createObjectURL(file);
+        filePreviewThumb.innerHTML = `<img src="${previewObjectUrl}" alt="">`;
+    } else if (file.type.startsWith('video/')) {
+        filePreviewThumb.textContent = '🎬';
+    } else if (file.type.startsWith('audio/')) {
+        filePreviewThumb.textContent = '🎵';
+    } else {
+        filePreviewThumb.textContent = '📄';
+    }
+
+    filePreview.classList.add('show');
+    messageInput.placeholder = 'Add a caption...';
+    messageInput.focus();
+}
+
+function clearFilePreview() {
+    pendingFile = null;
+    attachmentInput.value = '';
+    filePreview.classList.remove('show');
+    filePreviewThumb.textContent = '📄';
+    messageInput.placeholder = 'Type a message...';
+    if (previewObjectUrl) {
+        URL.revokeObjectURL(previewObjectUrl);
+        previewObjectUrl = null;
+    }
+}
+
+attachmentInput.addEventListener('change', function () {
+    const file = this.files[0];
+    if (!file) return;
+
+    if (file.size > MAX_FILE_SIZE) {
+        alert('File is too big. Maximum is ' + formatSize(MAX_FILE_SIZE) + '.');
+        this.value = '';
+        return;
+    }
+    showFilePreview(file);
+});
+
+filePreviewCancel.onclick = clearFilePreview;
+
+// ---------- BACK BUTTON ----------
+if (backBtn) backBtn.onclick = closeChatView;
+
+// ---------- EDIT PROFILE ----------
+editBtn.onclick = () => {
+    if (!currentUser) return;
+    editModal.style.display = 'flex';
+    editNameField.value = currentUser.name || '';
+    editPreview.src = currentUser.profile || 'default-avatar.png';
+    editPhoneField.value = currentUser.phone || '';
+    editPasswordField.value = '';
 };
 
-// 4. SAVE GOCHUU
+cancelEdit.onclick = () => (editModal.style.display = 'none');
+
+editFileInp.onchange = function () {
+    const file = this.files[0];
+    if (file) resizeImage(file, 200, (data) => (editPreview.src = data));
+};
+
 saveEdit.onclick = () => {
     const newName = editNameField.value;
-    const newProfile = editPreview.src;
-    const newPhone = editPhoneField.value;
-    const newPassword = editPasswordField.value;
+    if (newName.trim() === '') return alert('Maqaa galchi!');
 
-    if (newName.trim() === "") return alert("Maqaa galchi!");
-
-    // currentUser Update godhi
     currentUser.name = newName;
-    currentUser.profile = newProfile;
-    currentUser.phone = newPhone;
-    // LocalStorage update godhi
+    currentUser.profile = editPreview.src;
+    currentUser.phone = editPhoneField.value;
+
     localStorage.setItem('chat-user-token', JSON.stringify(currentUser));
-
-    // UI irratti jijjiiri
-    document.getElementById('chat-with-name').innerText = newName;
-    document.getElementById('chat-avatar').src = newProfile;
-
-    // Server-tti beeksisi (Database akka jijjiiru)
+    document.getElementById('my-profile-img').src = currentUser.profile;
     socket.emit('update-profile', currentUser);
 
     editModal.style.display = 'none';
-    alert("Profile Updated Successfully!");
+    alert('Profile Updated Successfully!');
 };
 
-
+// ---------- AUTO LOGIN ----------
 window.addEventListener('load', () => {
     const token = localStorage.getItem('chat-user-token');
     if (token) {
         currentUser = JSON.parse(token);
-        enterUserList(); // Ofumaan seensisi
+        enterUserList();
     }
 });
 
-
-
-
+// ---------- SIGNUP PHOTO PREVIEW ----------
 fileInput.addEventListener('change', function () {
     const file = this.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = function (e) {
-        previewImg.src = e.target.result;
-    };
-    reader.readAsDataURL(file);
+    if (file) resizeImage(file, 200, (data) => (previewImg.src = data));
+    else previewImg.src = 'default-avatar.png';
 });
-sendMessage();
 
-// 2. SIGNUP LOGIC
+// ---------- SIGNUP ----------
 signupForm.addEventListener('submit', (e) => {
     e.preventDefault();
-    const username = document.getElementById('username').value;
-    
-    if (username.trim() === '') { // Maqaan duwwaa hin ta'uu mirkaneessi
-        alert("Maaloo maqaa guutuu galchi!");
-        return; // Kana booda hin deemne
-    }
-    
-    nameInput.value = username; // Maqaa galmeessite chat keessa galchi
-    chatAvatar.src =previewImg.src;
+    const name = document.getElementById('username').value.trim();
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+    const confirmPassword = document.getElementById('confirm-password').value;
+    const phone = document.getElementById('phone').value;
 
-   // signupPage.style.display = 'none'; // Signup dhoksi
-       // Koodii kee isa kanaan duraa keessatti kana bakka buusi
-    currentUser = { name: username, profile: previewImg.src };
-    localStorage.setItem('chat-user-token', JSON.stringify(currentUser)); // Token save godhi
-    enterUserList(); 
+    if (name === '') return alert('Maaloo maqaa guutuu galchi!');
+    if (password !== confirmPassword) return alert('Passwords do not match!');
 
-
-  
-    if (clientsTotal) clientsTotal.style.display = 'block'; // ClientsTotal jira ta'e mul'isi
+    socket.emit('signup-user', {
+        name,
+        email,
+        phone,
+        password,
+        profile: previewImg.src
+    });
 });
 
-// 3. SUURAA PROFILE PREVIEW GOCHUUF (KANA AMMA SIRRIITTI HOJJETA)
-if (fileInput && previewImg) {
-    fileInput.addEventListener('change', function() {
-        const file = this.files[0];
-        if (file) {
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                previewImg.src = e.target.result;
-            };
-            reader.readAsDataURL(file);
-        } else {
-            previewImg.src = "default-avatar.png"; // Default suuraa deebisi
-        }
-    });
-}
-
+// ---------- LOGIN ----------
 loginForm.addEventListener('submit', (e) => {
     e.preventDefault();
-    // Server-tti ergi (Kun server irratti hunda'a)
     socket.emit('login-user', {
         email: document.getElementById('login-email').value,
         password: document.getElementById('login-password').value
@@ -224,13 +259,16 @@ socket.on('auth-success', (userData) => {
     enterUserList();
 });
 
+socket.on('auth-error', (msg) => alert(msg));
+
 function enterUserList() {
     signupPage.style.display = 'none';
-    chatMain.style.display = 'block';
-    if(loginPage) loginPage.style.display = 'none';
-    userListPage.style.display = 'block';
+    loginPage.style.display = 'none';
+    closeChatView();
     nameInput.value = currentUser.name;
+    document.getElementById('my-profile-img').src = currentUser.profile || 'default-avatar.png';
     socket.emit('new-user-joined', currentUser);
+    renderHistory();
 }
 
 function logoutUser() {
@@ -239,19 +277,16 @@ function logoutUser() {
     window.location.reload();
 }
 
-
-// 4. SOCKET.IO LOGIC
-//const socket = io();
-
-let isTabActive = true;
+// ---------- TAB / NOTIFICATION ----------
 document.addEventListener('visibilitychange', () => {
     isTabActive = !document.hidden;
 });
 
-if (Notification.permission !== "granted") {
+if ('Notification' in window && Notification.permission !== 'granted') {
     Notification.requestPermission();
 }
 
+// ---------- SEND MESSAGE (text, or file + caption) ----------
 messageForm.addEventListener('submit', (e) => {
     e.preventDefault();
     sendMessage();
@@ -263,230 +298,201 @@ socket.on('clients-total', (data) => {
 
 async function sendMessage() {
     if (!currentUser) {
-    alert("Please login first");
-    return;
-}
-    let fileData = null;
-
-    // 1. File yoo jiraate dura upload godhi
-    if (fileInput.files.length > 0) {
-        const formData = new FormData();
-        formData.append('file', fileInput.files[0]);
-
-        // HUBADHU: Mobile-n akka arguuf 'localhost' bakka IP address computer keetiin buusi
-        const res = await fetch('http://localhost:3000/uploads', {
-            method: 'POST',
-            body: formData
-        });
-
-        if (res.ok) {
-            fileData = await res.json();
-        } else {
-            console.log("Upload failed");
-            return;
-        }
+        alert('Please login first');
+        return;
     }
+    if (isSending) return;
 
-    // Ergaa duwwaa yoo ta'e dhiisi
-    if (messageInput.value.trim() === '' && !fileData) return;
-    
-    const data = {
-        name: currentUser.name,
-        message: messageInput.value,
-        profile: currentUser.profile || '/default-avatar.png', // Profile nama ergee qofa
-        dateTime: new Date(),
-        type: fileData ? 'file' : 'text',
-        fileUrl: fileData ? fileData.fileUrl : null, // Fakkii/Vidiyoo ergame
-        fileName: fileData ? fileData.fileName : null
-    };
-    
-    socket.emit('chat-message', data);
-    addMessageToUI(true, data); // Ofuma keetiif agarsiisi
+    const caption = messageInput.value.trim();
+    if (caption === '' && !pendingFile) return;
 
-    // 2. Erga ergitee booda qulqulleessi (Reset)
-    messageInput.value = '';
-    fileInput.value = '';
-    if (typeof previewImg !== 'undefined') previewImg.src = "/default-avatar.png"; 
+    isSending = true;
+    sendBtn.disabled = true;
+
+    try {
+        let fileData = null;
+
+        // 1. upload the file first (if there is one)
+        if (pendingFile) {
+            const formData = new FormData();
+            formData.append('file', pendingFile);
+
+            const res = await fetch('/uploads', { method: 'POST', body: formData });
+
+            if (!res.ok) {
+                let msg = 'Upload failed';
+                try {
+                    const err = await res.json();
+                    if (err.error) msg = err.error;
+                } catch (e) { /* ignore */ }
+                alert(msg);
+                return;
+            }
+            fileData = await res.json();
+        }
+
+        // 2. send the message (caption = text)
+        const data = {
+            name: currentUser.name,
+            message: caption,
+            profile: currentUser.profile || '/default-avatar.png',
+            dateTime: new Date(),
+            type: fileData ? 'file' : 'text',
+            fileUrl: fileData ? fileData.fileUrl : null,
+            fileName: fileData ? fileData.fileName : null
+        };
+
+        socket.emit('chat-message', data);
+        addMessageToUI(true, data);
+
+        // 3. reset
+        messageInput.value = '';
+        clearFilePreview();
+
+    } catch (err) {
+        console.log('Send error:', err);
+        alert('Could not send. Please check your connection.');
+    } finally {
+        isSending = false;
+        sendBtn.disabled = false;
+    }
 }
 
 socket.off('chat-message');
 socket.on('chat-message', (data) => {
-    //if (data.userId === socket.id) return;// Ergaa ofiitii yoo ta'e hin fudhatin
-    
-    messageTone.play();
-    addMessageToUI(false, data); // Kanaafuu `false` godhi, kan birootii waan ta'eef
-    
-    if (!isTabActive && Notification.permission === "granted") {
+    messageTone.play().catch(() => {});
+    addMessageToUI(false, data);
+
+    if (!isTabActive && 'Notification' in window && Notification.permission === 'granted') {
         new Notification(`New message: ${data.name}`, {
-            body: data.message,
+            body: data.message || data.fileName || 'New file',
             icon: '/favicon.ico'
         });
     }
 });
 
-function addMessageToUI(isOwnMessage, data) {
-    clearFeedback(); 
-    let fileContent = '';
+// ---------- SHOW MESSAGE ----------
+function renderFile(data) {
+    if (!data.fileUrl) return '';
 
-    // 1. Media Type Check (Image, Video, Audio, PDF)
-    if (data.type === 'file' && data.fileUrl) {
-        const fileExt = data.fileUrl.split('.').pop().toLowerCase();
+    const fileExt = data.fileUrl.split('.').pop().toLowerCase();
+    const safeName = escapeHtml(data.fileName || 'file');
 
-        if (['jpg', 'jpeg', 'png', 'gif'].includes(fileExt)) {
-            fileContent = `<img src="${data.fileUrl}" style="max-width:100%; border-radius:10px; display:block; margin-bottom:5px;">`;
-        } 
-        else if (['mp4', 'webm'].includes(fileExt)) {
-            fileContent = `
-            <video controls style="max-width:100%; border-radius:10px; display:block; margin-bottom:5px;">
-                <source src="${data.fileUrl}">
-            </video>`;
-        } 
-        else {
-            fileContent = `<div style="background:#f1f1f1; padding:8px; border-radius:5px; margin-bottom:5px;">
-                <a href="${data.fileUrl}" target="_blank" download style="color:#007bff; font-weight:bold; text-decoration:none;">
-                    📄 ${data.fileName || 'View File'}
-                </a>
-            </div>`;
-        }
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'].includes(fileExt)) {
+        return `<a href="${data.fileUrl}" target="_blank">
+                    <img src="${data.fileUrl}" style="max-width:100%; border-radius:10px; display:block; margin-bottom:5px;">
+                </a>`;
+    }
+    if (['mp4', 'webm', 'mov'].includes(fileExt)) {
+        return `<video controls style="max-width:100%; border-radius:10px; display:block; margin-bottom:5px;">
+                    <source src="${data.fileUrl}">
+                </video>`;
+    }
+    if (['mp3', 'wav', 'ogg', 'm4a'].includes(fileExt)) {
+        return `<audio controls src="${data.fileUrl}" style="max-width:100%; margin-bottom:5px;"></audio>`;
     }
 
-    // 2. UI Layout (Akkuma suuraa 2ffaa sanaatti bareechuuf)
+    // any other file: pdf, doc, zip, ...  -> download card
+    return `<a href="${data.fileUrl}" download="${safeName}" target="_blank"
+               style="display:flex; align-items:center; gap:10px; background:#f1f1f1; padding:10px; border-radius:8px; margin-bottom:5px; text-decoration:none; color:#111b21;">
+                <span style="font-size:28px;">📄</span>
+                <span style="font-weight:600; font-size:13px; word-break:break-all;">${safeName}</span>
+                <span style="font-size:18px;">⬇️</span>
+            </a>`;
+}
+
+function addMessageToUI(isOwnMessage, data) {
+    clearFeedback();
+
     const element = `
-        <li class="${isOwnMessage ? 'message-right' : 'message-left'}" style="list-style:none; margin-bottom:15px; display:flex; flex-direction: ${isOwnMessage ? 'row-reverse' : 'row'}; align-items: flex-end;">
-            
-            <!-- PROFILE: data.profile qofa fayyadamna -->
-            <img src="${data.profile || 'default-avatar.png'}" style="width: 35px; height: 35px; border-radius: 50%; margin: 0 8px; object-fit: cover;">
-            
-            <div style="background: ${isOwnMessage ? '#dcf8c6' : '#ffffff'}; 
-                        color: #000; 
-                        padding: 10px 15px; 
-                        border-radius: ${isOwnMessage ? '15px 15px 0 15px' : '15px 15px 15px 0'}; 
-                        max-width: 250px; 
-                        box-shadow: 0 1px 2px rgba(0,0,0,0.2);">
-                
-                <span style="font-size: 11px; font-weight: bold; color: #555; display: block; margin-bottom: 3px;">${data.name}</span>
-                
-                ${fileContent} <!-- Image/Video asitti bama -->
-                
-                <p style="margin: 0; word-wrap: break-word;">${data.message || ''}</p>
-                
-                <span style="font-size: 10px; opacity: 0.6; display: block; text-align: right; margin-top: 5px;">
+        <li class="${isOwnMessage ? 'message-right' : 'message-left'}" style="list-style:none; margin-bottom:15px; display:flex; flex-direction:${isOwnMessage ? 'row-reverse' : 'row'}; align-items:flex-end;">
+            <img src="${data.profile ? data.profile : '/default-avatar.png'}" style="width:35px; height:35px; border-radius:50%; margin:0 8px; object-fit:cover;">
+            <div style="background:${isOwnMessage ? '#dcf8c6' : '#ffffff'};
+                        color:#000;
+                        padding:10px 15px;
+                        border-radius:${isOwnMessage ? '15px 15px 0 15px' : '15px 15px 15px 0'};
+                        max-width:280px;
+                        box-shadow:0 1px 2px rgba(0,0,0,0.2);">
+                <span style="font-size:11px; font-weight:bold; color:#555; display:block; margin-bottom:3px;">${escapeHtml(data.name)}</span>
+                ${renderFile(data)}
+                ${data.message ? `<p style="margin:0; word-wrap:break-word;">${escapeHtml(data.message)}</p>` : ''}
+                <span style="font-size:10px; opacity:0.6; display:block; text-align:right; margin-top:5px;">
                     ${moment(data.dateTime).format('LT')}
                 </span>
             </div>
         </li>`;
 
-    messageContainer.innerHTML += element;
+    messageContainer.insertAdjacentHTML('beforeend', element);
     scrollToBottom();
 }
 
+// ---------- OLD MESSAGES ----------
+function renderHistory() {
+    messageContainer.innerHTML = '';
+    if (!currentUser) return;
+    oldMessages.forEach((data) => {
+        addMessageToUI(data.name === currentUser.name, data);
+    });
+}
 
+socket.on('load-old-messages', (messages) => {
+    oldMessages = messages;
+    renderHistory();
+});
+
+// ---------- USER LIST ----------
 socket.on('update-user-list', (users) => {
-    const userListUI = document.getElementById('users-online'); // ID kana HTML irratti mirkaneessi
-    if (!userListUI) return; 
+    if (!userListUI || !currentUser) return;
+    userListUI.innerHTML = '';
 
-    userListUI.innerHTML = ''; // Dura qulqulleessi
+    users.forEach((user) => {
+        if (user.name === currentUser.name) return;
 
-    users.forEach(user => {
-        // Ofii kee akka list irratti of hin argine
-        if (user.name !== currentUser.name) { 
-            const li = document.createElement('li');
-            li.style = "padding: 10px; display: flex; align-items: center; cursor: pointer; border-bottom: 1px solid #eee; transition: 0.3s;";
-            
-            // Mouse irra yeroo deemu halluu akka jijjiiru (optional)
-            li.onmouseover = () => li.style.background = "#f5f5f5";
-            li.onmouseout = () => li.style.background = "transparent";
+        const li = document.createElement('li');
+        li.innerHTML = `
+            <img src="${user.profile || 'default-avatar.png'}" style="width:40px; height:40px; border-radius:50%; margin-right:12px; object-fit:cover;">
+            <span style="font-size:16px; font-weight:500;">${escapeHtml(user.name)}</span>
+        `;
 
-            li.innerHTML = `
-                <img src="${user.profile}" style="width: 40px; height: 40px; border-radius: 50%; margin-right: 12px; object-fit: cover;">
-                <span style="font-size: 16px; font-weight: 500;">${user.name}</span>
-            `;
+        li.onclick = () => {
+            openChatView();
+            chatAvatar.src = user.profile || 'default-avatar.png';
+            document.getElementById('chat-with-name').innerText = user.name;
+            renderHistory();
+        };
 
-            // --- NAMA FILATAME WALIIN CHAT JALQABUU ---
-            li.onclick = () => {
-                // 1. Fuula filannoo (User list) dhoksi
-                userListPage.style.display = 'none';
-                
-                // 2. Chat room (.main) mul'isi
-                chatMain.style.display = 'block';
-                messageContainer.innerHTML = '';
-                
-                // 3. Suuraa nama filatamee sanaa Header irratti galchi
-                chatAvatar.src = user.profile || 'default-avatar.png';
-                
-                // 4. Maqaa isaa Header irratti barreessi
-                const chatHeaderName = document.getElementById('chat-with-name');
-                if (chatHeaderName) {
-                    chatHeaderName.innerText = user.name;
-                }
-            };
-            userListUI.appendChild(li); // Elementii 'li' HTML keessa galchi
-        }
+        userListUI.appendChild(li);
     });
-}); // <--- Cufinsa koodii isa citee
+});
 
-
-//  signupForm.addEventListener('submit', (e) => {
-//      e.preventDefault();
-//      const username = document.getElementById('username').value;
-//      currentUser ={name:username,profile:previewImg.src};
-//      localStorage.setItem('chat-user-token', JSON.stringify(currentUser));
-    
-//      socket.emit('new-user-joined', { name: currentUser.name, profile: currentUser.profile });
-//      enterUserList();
-//  });
-function scrollToBottom() {
-    messageContainer.scrollTo(0, messageContainer.scrollHeight);
-}
-
-function clearFeedback() {
-    // Namni barreessaa jira ta'ee feedback delete godhi
-    const feedbackElement = document.querySelector('.message-feedback');
-    if (feedbackElement) {
-        feedbackElement.parentNode.removeChild(feedbackElement);
-    }
-}
-
-// Namni barreessuu jalqabe
+// ---------- TYPING FEEDBACK ----------
 messageInput.addEventListener('focus', () => {
-    socket.emit('feedback', {
-        feedback: `✍️ ${currentUser.name } is typing a message`
-    });
+    if (!currentUser) return;
+    socket.emit('feedback', { feedback: `✍️ ${currentUser.name} is typing a message` });
 });
 
-// Namni barreessuu dhiise (yoo input irraa xiqqaate)
 messageInput.addEventListener('blur', () => {
-    socket.emit('feedback', {
-        feedback: '' // feedback dhabamsiisi
-    });
+    socket.emit('feedback', { feedback: '' });
 });
 
-// Server irraa feedback yoo dhufe
 socket.on('feedback', (data) => {
     const feedbackElement = document.querySelector('.message-feedback');
     if (data.feedback) {
         if (feedbackElement) {
-            feedbackElement.innerHTML = `<p class="feedback">${data.feedback}</p>`;
+            feedbackElement.innerHTML = `<p class="feedback">${escapeHtml(data.feedback)}</p>`;
         } else {
-            // Yoo feedback element hin jiraanne, haaraa uumi
-            const newFeedbackElement = document.createElement('li');
-            newFeedbackElement.classList.add('message-feedback');
-            newFeedbackElement.innerHTML = `<p class="feedback">${data.feedback}</p>`;
-            messageContainer.appendChild(newFeedbackElement);
+            const li = document.createElement('li');
+            li.classList.add('message-feedback');
+            li.innerHTML = `<p class="feedback">${escapeHtml(data.feedback)}</p>`;
+            messageContainer.appendChild(li);
+            scrollToBottom();
         }
-    } else {
-        // Yoo feedback hin jirre, elementicha kaasi
-        if (feedbackElement) {
-            feedbackElement.parentNode.removeChild(feedbackElement);
-        }
+    } else if (feedbackElement) {
+        feedbackElement.remove();
     }
 });
-socket.on('load-old-messages', (messages) => {
-    messages.forEach(data =>{
-        const isOwnMessage = data.name === currentUser.name;
-        addMessageToUI(isOwnMessage, data);
-    });
-});
+
+// ---------- CALLS ----------
 function startVoiceCall() {
     socket.emit('voice-call-request', {
         from: currentUser,
