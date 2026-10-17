@@ -373,6 +373,8 @@ body {
         width: 100%;
     }
 }
+
+/* ==================== 7. FILE PREVIEW (send file + caption) ==================== */
 .file-preview {
     display: none;
     align-items: center;
@@ -382,7 +384,10 @@ body {
     border-top: 1px solid #e9edef;
     flex-shrink: 0;
 }
-.file-preview.show { display: flex; }
+
+.file-preview.show {
+    display: flex;
+}
 
 #file-preview-thumb {
     width: 52px;
@@ -396,9 +401,18 @@ body {
     overflow: hidden;
     flex-shrink: 0;
 }
-#file-preview-thumb img { width: 100%; height: 100%; object-fit: cover; }
 
-.file-preview-info { flex: 1; min-width: 0; }
+#file-preview-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.file-preview-info {
+    flex: 1;
+    min-width: 0;
+}
+
 #file-preview-name {
     font-size: 14px;
     font-weight: 600;
@@ -406,7 +420,11 @@ body {
     overflow: hidden;
     text-overflow: ellipsis;
 }
-#file-preview-size { font-size: 12px; color: #667781; }
+
+#file-preview-size {
+    font-size: 12px;
+    color: #667781;
+}
 
 #file-preview-cancel {
     border: none;
@@ -416,8 +434,218 @@ body {
     color: #54656f;
 }
 
-.send-button:disabled { opacity: 0.6; cursor: wait; }
+.send-button:disabled {
+    opacity: 0.6;
+    cursor: wait;
+}
 
 /* "Total clients" no longer covers the header icons */
-.clients-total { top: auto; right: auto; left: 16px; bottom: 6px; }
-@media (max-width: 768px) { .clients-total { display: none; } }
+.clients-total {
+    top: auto;
+    right: auto;
+    left: 16px;
+    bottom: 6px;
+}
+
+@media (max-width: 768px) {
+    .clients-total {
+        display: none;
+    }
+}
+
+/* ==================== 8. SECURE PRIVATE CHAT ADDITIONS ==================== */
+input[type="file"] { display: none; }
+
+/* hide the whole app until the user is logged in */
+.container.logged-out #user-list-page,
+.container.logged-out .app-container { visibility: hidden; }
+
+.form-error {
+    color: #d93025;
+    font-size: 13px;
+    min-height: 16px;
+    margin: -4px 0 8px;
+    white-space: pre-line;
+}
+
+.signup-avatar {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    border: 1px solid #ccc;
+    object-fit: cover;
+}
+
+#signup-page a, #login-page a { color: #00a884; cursor: pointer; }
+
+.icon-btn {
+    border: none;
+    background: none;
+    cursor: pointer;
+    font-size: 19px;
+    color: #54656f;
+    padding: 6px;
+}
+.icon-btn:hover { color: #111b21; }
+
+/* ----- chat list ----- */
+.chat-item.active { background: #f0f2f5; }
+.avatar-wrap { position: relative; margin-right: 12px; }
+.avatar { width: 46px; height: 46px; border-radius: 50%; object-fit: cover; margin-right: 12px; }
+.avatar-wrap .avatar { margin-right: 0; }
+.online-dot {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    width: 12px;
+    height: 12px;
+    background: #25d366;
+    border: 2px solid #fff;
+    border-radius: 50%;
+}
+.chat-info { flex: 1; min-width: 0; }
+.chat-name { font-size: 16px; font-weight: 600; color: #111b21; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chat-preview { font-size: 13px; color: #667781; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+.chat-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; margin-left: 8px; }
+.chat-time { font-size: 11px; color: #667781; }
+.badge { background: #00a884; color: #fff; font-size: 11px; font-weight: 700; min-width: 20px; padding: 2px 6px; border-radius: 10px; text-align: center; }
+.list-note { padding: 24px 16px; color: #667781; font-size: 14px; text-align: center; cursor: default !important; }
+
+/* ----- chat header ----- */
+.chat-header .header-avatar { margin: 0 0 0 8px; }
+.header-info { margin-left: 10px; flex: 1; min-width: 0; }
+.header-info h4 { margin: 0; font-size: 16px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.header-status { margin: 0; font-size: 11px; color: #667781; }
+.header-status.online { color: #27ae60; }
+#back-btn { display: none; }
+
+/* ----- empty state ----- */
+.chat-empty {
+    display: none;
+    flex: 1;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    color: #667781;
+    text-align: center;
+    padding: 20px;
+}
+.chat-empty i { font-size: 54px; color: #b0b8bd; }
+.main.no-chat .chat-empty { display: flex; }
+.main.no-chat .chat-header,
+.main.no-chat .message-container,
+.main.no-chat .file-preview,
+.main.no-chat .message-form { display: none; }
+
+/* ----- messages ----- */
+.msg { list-style: none; display: flex; }
+.msg-mine { justify-content: flex-end; }
+.msg-theirs { justify-content: flex-start; }
+.bubble {
+    position: relative;
+    max-width: min(75%, 420px);
+    padding: 8px 12px 6px;
+    border-radius: 12px;
+    box-shadow: 0 1px 1px rgba(0,0,0,0.13);
+    font-size: 15px;
+    color: #111b21;
+    word-wrap: break-word;
+    overflow-wrap: anywhere;
+}
+.msg-mine .bubble { background: #d9fdd3; border-top-right-radius: 0; }
+.msg-theirs .bubble { background: #ffffff; border-top-left-radius: 0; }
+.msg-text { margin: 0; white-space: pre-wrap; }
+.msg-meta { display: flex; justify-content: flex-end; gap: 6px; font-size: 11px; color: #667781; margin-top: 3px; }
+.ticks.read { color: #53bdeb; }
+.deleted { font-style: italic; color: #667781; font-size: 14px; }
+.msg-actions {
+    display: none;
+    position: absolute;
+    top: -14px;
+    right: 6px;
+    gap: 2px;
+    background: #fff;
+    border-radius: 14px;
+    padding: 2px 4px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+}
+.msg-actions button { border: none; background: none; cursor: pointer; font-size: 14px; padding: 2px 3px; }
+.bubble:hover .msg-actions, .bubble:focus-within .msg-actions { display: flex; }
+
+.att-img { max-width: 100%; max-height: 320px; border-radius: 8px; display: block; margin-bottom: 4px; }
+.att-video { max-width: 100%; max-height: 320px; border-radius: 8px; display: block; margin-bottom: 4px; }
+.att-audio { max-width: 100%; margin-bottom: 4px; }
+.att-file {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: rgba(0,0,0,0.05);
+    padding: 10px;
+    border-radius: 8px;
+    margin-bottom: 4px;
+    text-decoration: none;
+    color: #111b21;
+}
+.att-icon { font-size: 26px; }
+.att-name { font-weight: 600; font-size: 13px; word-break: break-all; }
+.att-size { font-size: 11px; color: #667781; white-space: nowrap; }
+.load-older { list-style: none; text-align: center; }
+.load-older button { border: none; background: #fff; color: #00a884; padding: 6px 14px; border-radius: 14px; cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,0.2); }
+
+/* ----- toast ----- */
+.toast {
+    position: fixed;
+    left: 50%;
+    bottom: 80px;
+    transform: translateX(-50%);
+    background: #111b21;
+    color: #fff;
+    padding: 10px 16px;
+    border-radius: 8px;
+    font-size: 14px;
+    z-index: 100000;
+    max-width: 90vw;
+}
+
+/* ----- edit profile modal ----- */
+.modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.8);
+    z-index: 9999;
+    justify-content: center;
+    align-items: center;
+}
+.modal.show { display: flex; }
+.modal-card {
+    background: #fff;
+    padding: 24px;
+    border-radius: 15px;
+    width: 92%;
+    max-width: 400px;
+    max-height: 92dvh;
+    overflow-y: auto;
+    text-align: center;
+}
+.modal-card h3 { margin-bottom: 14px; }
+.edit-avatar { width: 100px; height: 100px; border-radius: 50%; border: 2px solid #3498db; cursor: pointer; object-fit: cover; }
+.hint { font-size: 12px; color: gray; margin-bottom: 6px; }
+.field-label { display: block; text-align: left; font-size: 13px; font-weight: 700; margin-top: 12px; }
+.modal-card input[type="text"], .modal-card input[type="tel"], .modal-card input[type="password"] {
+    width: 100%;
+    padding: 10px;
+    margin-top: 5px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+}
+.modal-actions { margin-top: 16px; display: flex; gap: 10px; }
+.modal-actions button { flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 8px; background: #fff; cursor: pointer; font-weight: 600; }
+.modal-actions .ok { color: green; }
+.modal-actions .cancel { color: red; }
+
+@media (max-width: 768px) {
+    #back-btn { display: inline-block; }
+    .bubble { max-width: 85%; }
+}

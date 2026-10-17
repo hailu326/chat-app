@@ -1,33 +1,12 @@
-// const mongoose = require('mongoose')
-// require('dotenv').config();
-// const dbURI = process.env.CONN_STRING;
-// //connection logic
-// mongoose.connect(dbURI);
-
-//connection state
-//const db = mongoose.connection;
-//db.on('connected',() =>{
-//     console.log('mongoose conected successfully')
-// }
-// db.on('error', () => {
-//     console.log('DB connection failed')
-// })
-
-// module.exports = db;
+'use strict';
 const mongoose = require('mongoose');
-require('dotenv').config();
 
-const dbURI = process.env.CONN_STRING;
+// Connects to MongoDB Atlas. server.js waits for this before it starts listening.
+async function connectDB() {
+  const uri = process.env.CONN_STRING;
+  if (!uri) throw new Error('CONN_STRING is missing in .env');
+  await mongoose.connect(uri);
+  console.log('MongoDB connected');
+}
 
-// MongoDB Atlas Connection
-mongoose.connect(dbURI)
-    .then(() => {
-        console.log('MongoDB Atlas Connected Successfully! ✅');
-        console.log('Database Name: chat-app 📂');
-    })
-    .catch((err) => {
-        console.log('Atlas Connection Error: ❌', err.message);
-    });
-
-const db = mongoose.connection;
-module.exports = db;
+module.exports = connectDB;

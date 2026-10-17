@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -9,83 +9,86 @@
 </head>
 <body>
 
-<div class="container">
+<!-- NOTE: no inline onclick="" anywhere. All events are attached in main.js
+     (this lets the server use a strict Content-Security-Policy). -->
+<div class="container logged-out">
 
     <!-- SIGNUP PAGE -->
     <div id="signup-page">
         <h2>signup</h2>
-        <form id="signup-form">
+        <form id="signup-form" novalidate>
             <div class="profile-upload">
                 <label for="file-input">
-                    <img src="default-avatar.png" alt="" id="preview" style="width: 80px;height: 80px;border-radius: 50%;border: 1px solid #ccc;">
+                    <img src="/default-avatar.svg" alt="" id="preview" class="signup-avatar">
                 </label>
-                <input type="file" id="file-input" class="file-input" accept="image/*" style="display:none;">
+                <input type="file" id="file-input" accept="image/png,image/jpeg,image/webp,image/gif">
                 <p>select profile photo</p>
             </div>
 
-            <input type="text" id="username" placeholder="full name" required>
-            <input type="tel" id="phone" placeholder="phone number" required>
-            <input type="email" id="email" placeholder="email address" required>
-            <input type="password" id="password" placeholder="password" required>
-            <input type="password" id="confirm-password" placeholder="confirm password" required>
+            <input type="text" id="username" placeholder="full name" maxlength="50" autocomplete="name" required>
+            <input type="tel" id="phone" placeholder="phone number" maxlength="16" autocomplete="tel">
+            <input type="email" id="email" placeholder="email address" maxlength="254" autocomplete="email" required>
+            <input type="password" id="password" placeholder="password" maxlength="72" autocomplete="new-password" required>
+            <input type="password" id="confirm-password" placeholder="confirm password" maxlength="72" autocomplete="new-password" required>
+            <p class="form-error" id="signup-error"></p>
             <button type="submit">create account</button>
         </form>
-        <p>already have an account?<a href="#" onclick="showLogin()"> login here</a></p>
+        <p>already have an account? <a href="#" id="link-login">login here</a></p>
     </div>
 
     <!-- LOGIN PAGE -->
     <div id="login-page" style="display:none;">
         <h2>Login</h2>
-        <form id="login-form">
-            <input type="email" id="login-email" placeholder="Email Address" required>
-            <input type="password" id="login-password" placeholder="Password" required>
+        <form id="login-form" novalidate>
+            <input type="email" id="login-email" placeholder="Email Address" maxlength="254" autocomplete="email" required>
+            <input type="password" id="login-password" placeholder="Password" maxlength="128" autocomplete="current-password" required>
+            <p class="form-error" id="login-error"></p>
             <button type="submit">Login</button>
         </form>
-        <p>New here? <a href="#" onclick="showSignup()">Signup here</a></p>
+        <p>New here? <a href="#" id="link-signup">Signup here</a></p>
     </div>
 
-    <!-- USER LIST (BITAA) -->
+    <!-- CHAT LIST (BITAA) -->
     <div id="user-list-page">
         <div class="app-header">
-            <img src="default-avatar.png" id="my-profile-img" class="header-avatar">
+            <img src="/default-avatar.svg" id="my-profile-img" class="header-avatar" alt="">
             <h2>Chats</h2>
-            <!-- camera icon removed: only edit profile icon stays -->
-            <i class="fas fa-user-edit" id="edit-profile-btn" style="cursor:pointer; color:#555; font-size: 20px;"></i>
+            <button type="button" class="icon-btn" id="edit-profile-btn" title="Edit profile"><i class="fas fa-user-pen"></i></button>
+            <button type="button" class="icon-btn" id="logout-btn" title="Log out"><i class="fas fa-right-from-bracket"></i></button>
         </div>
 
         <div class="search-bar">
-            <input type="text" placeholder="Search friends..." id="search-input">
+            <input type="text" placeholder="Search people by name..." id="search-input" maxlength="50" autocomplete="off">
         </div>
 
-        <ul id="users-online" class="friend-list">
-            <!-- users -->
-        </ul>
+        <ul id="users-online" class="friend-list"></ul>
     </div>
 
     <!-- CHAT ROOM (MIRGA) -->
     <div class="app-container">
-        <div class="main">
-            <div class="chat-header" style="display: flex; align-items: center; padding: 10px 15px; background: #fff; border-bottom: 1px solid #eee;">
-                <i class="fas fa-arrow-left" id="back-btn" style="cursor:pointer; font-size: 18px;"></i>
+        <div class="main no-chat">
 
-                <img src="default-avatar.png" id="chat-avatar" class="header-avatar" style="width: 40px; height: 40px; margin-left: 12px; border-radius: 50%; object-fit: cover;">
+            <div class="chat-empty" id="chat-empty">
+                <i class="fa-regular fa-comments"></i>
+                <p>Select a chat or search a person to start a private conversation</p>
+            </div>
 
-                <div class="header-info" style="margin-left: 10px; flex: 1;">
-                    <h4 id="chat-with-name" style="margin: 0; font-size: 16px; font-weight: bold;">Username</h4>
-                    <p style="margin: 0; font-size: 11px; color: #27ae60;">Online</p>
+            <div class="chat-header">
+                <button type="button" class="icon-btn" id="back-btn" title="Back"><i class="fas fa-arrow-left"></i></button>
+                <img src="/default-avatar.svg" id="chat-avatar" class="header-avatar" alt="">
+                <div class="header-info">
+                    <h4 id="chat-with-name">Username</h4>
+                    <p id="chat-status" class="header-status"></p>
                 </div>
-
                 <div class="call-buttons">
-                    <button id="voice-call-btn">📞</button>
-                    <button id="video-call-btn">🎥</button>
+                    <button type="button" id="voice-call-btn" title="Voice call">📞</button>
+                    <button type="button" id="video-call-btn" title="Video call">🎥</button>
                 </div>
-
-                <input type="hidden" id="name-input" value="anonymous">
             </div>
 
             <ul class="message-container" id="message-container"></ul>
 
-            <!-- FILE PREVIEW (shows after you choose a file, like Telegram) -->
+            <!-- FILE PREVIEW (after you choose a file) -->
             <div class="file-preview" id="file-preview">
                 <div id="file-preview-thumb">📄</div>
                 <div class="file-preview-info">
@@ -96,56 +99,50 @@
             </div>
 
             <form class="message-form" id="message-form">
-                <label for="attachment-file-input" class="file-icon">
+                <label for="attachment-file-input" class="file-icon" title="Attach a file">
                     <i class="fa fa-paperclip"></i>
                 </label>
-                <!-- no "accept" and no "capture": any file type is allowed -->
-                <input type="file" id="attachment-file-input" style="display:none;" />
+                <input type="file" id="attachment-file-input">
 
-                <input type="text" name="message" id="message-input" class="message-input" placeholder="Type a message..." autocomplete="off">
+                <input type="text" id="message-input" class="message-input" placeholder="Type a message..." maxlength="4000" autocomplete="off">
 
-                <button type="submit" class="send-button">
+                <button type="submit" class="send-button" title="Send">
                     <span><i class="fa-solid fa-paper-plane"></i></span>
                 </button>
             </form>
         </div>
     </div>
 
-    <h3 class="clients-total" id="clients-total">Total clients:2</h3>
-
-</div> <!-- container closed -->
+</div>
 
 <!-- EDIT PROFILE MODAL -->
-<div id="edit-profile-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:9999; justify-content:center; align-items:center;">
-    <div style="background:white; padding:25px; border-radius:15px; width:90%; max-width:400px; text-align:center; position:relative;">
-        <h3 style="margin-bottom:20px;">Edit Your Profile</h3>
+<div id="edit-profile-modal" class="modal">
+    <div class="modal-card">
+        <h3>Edit Your Profile</h3>
 
-        <div class="edit-preview-container">
-            <label for="edit-file-input">
-                <img id="edit-preview" src="default-avatar.png" style="width:100px; height:100px; border-radius:50%; border:2px solid #3498db; cursor:pointer; object-fit:cover;">
-            </label>
-            <input type="file" id="edit-file-input" accept="image/*" style="display:none;">
-            <p style="font-size:12px; color:gray;">Click image to change</p>
-        </div>
+        <label for="edit-file-input">
+            <img id="edit-preview" src="/default-avatar.svg" alt="" class="edit-avatar">
+        </label>
+        <input type="file" id="edit-file-input" accept="image/png,image/jpeg,image/webp,image/gif">
+        <p class="hint">Click the image to change it</p>
 
-        <div style="margin-top:15px;">
-            <label style="display:block; text-align:left; font-size:14px; font-weight:bold;">Full Name:</label>
-            <input type="text" id="edit-name-input" style="width:100%; padding:10px; margin-top:5px; border:1px solid #ccc; border-radius:5px;">
-        </div>
+        <label class="field-label" for="edit-name-input">Full Name</label>
+        <input type="text" id="edit-name-input" maxlength="50">
 
-        <div style="margin-top:15px;">
-            <label style="display:block; text-align:left; font-size:14px; font-weight:bold;">phone number:</label>
-            <input type="tel" id="edit-phone-input" style="width:100%; padding:10px; margin-top:5px; border:1px solid #ccc; border-radius:5px;">
-        </div>
+        <label class="field-label" for="edit-phone-input">Phone number</label>
+        <input type="tel" id="edit-phone-input" maxlength="16">
 
-        <div style="margin-top:15px;">
-            <label style="display:block; text-align:left; font-size:14px; font-weight:bold;">password:</label>
-            <input type="password" id="edit-password-input" style="width:100%; padding:10px; margin-top:5px; border:1px solid #ccc; border-radius:5px;">
-        </div>
+        <label class="field-label" for="edit-current-password">Current password (only to change password)</label>
+        <input type="password" id="edit-current-password" maxlength="128" autocomplete="current-password">
 
-        <div style="margin-top:20px; display:flex; gap:10px;">
-            <button id="save-edit-btn" style="flex:1; color:green">Save Changes</button>
-            <button id="cancel-edit-btn" style="flex:1; color:red">Cancel</button>
+        <label class="field-label" for="edit-new-password">New password (optional)</label>
+        <input type="password" id="edit-new-password" maxlength="72" autocomplete="new-password">
+
+        <p class="form-error" id="edit-error"></p>
+
+        <div class="modal-actions">
+            <button type="button" id="save-edit-btn" class="ok">Save Changes</button>
+            <button type="button" id="cancel-edit-btn" class="cancel">Cancel</button>
         </div>
     </div>
 </div>
@@ -153,7 +150,6 @@
 <audio id="message-tone" src="universfield-new-notification-021-370045.mp3"></audio>
 
 <script src="/socket.io/socket.io.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.30.1/moment.min.js"></script>
 <script src="main.js"></script>
 
 </body>
