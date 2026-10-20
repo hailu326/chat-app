@@ -12,5 +12,17 @@
     "mongoose": "^9.4.1",
     "multer": "^2.1.1",
     "socket.io": "^4.8.3"
+  },
+  "devDependencies": {
+    "jest": "^30.5.2",
+    "mongodb-memory-server": "^11.3.0",
+    "socket.io-client": "^4.8.4",
+    "supertest": "^7.3.1"
+  },
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }

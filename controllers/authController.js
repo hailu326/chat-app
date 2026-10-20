@@ -1,171 +1,124 @@
+'use strict';
+const bcrypt = require('bcrypt');
 const User = require('../models/User');
-const jwt = require('jsonwebtoken');
+const Conversation = require('../models/conversation');
+const { userSelf } = require('../utils/dto');
+const { parseImageDataUrl } = require('../utils/fileType');
+const {
+  signToken,
+  setAuthCookie,
+  clearAuthCookie,
+  parseCookies,
+  cookieName,
+  userFromToken
+} = require('../middleware/auth');
 
-// Generate JWT token
-const generateToken = (userId) => {
-  return jwt.sign({ userId }, process.env.JWT_SECRET, { expiresIn: '7d' });
+// Used so that "unknown email" and "wrong password" take the same time (no user guessing by timing)
+const DUMMY_HASH = bcrypt.hashSync('not-a-real-password', 12);
+
+const disconnectUserSockets = (req, userId) => {
+  const io = req.app.get('io');
+  if (io) io.in(`user:${userId}`).disconnectSockets(true);
 };
 
-// Register new user
+// The login token is sent ONLY as an HttpOnly cookie. JavaScript in the page (or an attacker's script)
+// can never read it, and it is NOT returned in the JSON body.
 const register = async (req, res) => {
-  try {
-    const { username, email, password, phone } = req.body;
+  const { name, email, password, phone, avatar } = req.body || {};
 
-    // Check if user already exists
-    const existingUser = await User.findOne({
-      $or: [{ email }, { username }]
-    });
-
-    if (existingUser) {
-      return res.status(400).json({
-        error: existingUser.email === email ? 'Email already registered' : 'Username already taken'
-      });
-    }
-
-    // Create new user
-    const user = new User({
-      username,
-      email,
-      password,
-      phone
-    });
-
-    await user.save();
-
-    // Generate token
-    const token = generateToken(user._id);
-
-    res.status(201).json({
-      message: 'User registered successfully',
-      user: {
-        id: user._id,
-        username: user.username,
-        email: user.email,
-        avatar: user.avatar,
-        phone: user.phone
-      },
-      token
-    });
-  } catch (error) {
-    console.error('Registration error:', error);
-    res.status(500).json({ error: 'Server error during registration' });
+  let profile;
+  if (avatar) {
+    const img = parseImageDataUrl(avatar);
+    if (!img.ok) return res.status(400).json({ error: img.error });
+    profile = avatar;
   }
+
+  if (await User.exists({ email })) return res.status(409).json({ error: 'Email already registered' });
+
+  let user;
+  try {
+    user = await User.create({ name, email, password, phone: phone || undefined, profile });
+  } catch (err) {
+    if (err && err.code === 11000) return res.status(409).json({ error: 'Email already registered' });
+    throw err;
+  }
+
+  setAuthCookie(res, signToken(user));
+  res.status(201).json({ user: userSelf(user) });
 };
 
-// Login user
 const login = async (req, res) => {
-  try {
-    const { email, password } = req.body;
+  const { email, password } = req.body;
+  const user = await User.findOne({ email }).select('+password');
+  const ok = await bcrypt.compare(password, user ? user.password : DUMMY_HASH);
+  if (!user || !ok) return res.status(401).json({ error: 'Invalid email or password' });
 
-    // Find user by email
-    const user = await User.findOne({ email });
-    if (!user) {
-      return res.status(401).json({ error: 'Invalid email or password' });
-    }
-
-    // Check password
-    const isPasswordValid = await user.comparePassword(password);
-    if (!isPasswordValid) {
-      return res.status(401).json({ error: 'Invalid email or password' });
-    }
-
-    // Update online status
-    user.isOnline = true;
-    user.lastSeen = new Date();
-    await user.save();
-
-    // Generate token
-    const token = generateToken(user._id);
-
-    res.json({
-      message: 'Login successful',
-      user: {
-        id: user._id,
-        username: user.username,
-        email: user.email,
-        avatar: user.avatar,
-        phone: user.phone,
-        isOnline: user.isOnline
-      },
-      token
-    });
-  } catch (error) {
-    console.error('Login error:', error);
-    res.status(500).json({ error: 'Server error during login' });
-  }
+  setAuthCookie(res, signToken(user));
+  res.json({ user: userSelf(user) });
 };
 
-// Logout user
+// Works even if the session already expired (it just clears the cookie).
 const logout = async (req, res) => {
-  try {
-    const user = req.user;
-    user.isOnline = false;
-    user.lastSeen = new Date();
-    await user.save();
-
-    res.json({ message: 'Logout successful' });
-  } catch (error) {
-    console.error('Logout error:', error);
-    res.status(500).json({ error: 'Server error during logout' });
-  }
+  const result = await userFromToken(parseCookies(req.headers.cookie)[cookieName()]);
+  clearAuthCookie(res);
+  if (!result.error) disconnectUserSockets(req, result.user._id);
+  res.json({ message: 'Logged out' });
 };
 
-// Get current user profile
+// "Log out everywhere": raising tokenVersion makes every old login token invalid.
+const logoutAll = async (req, res) => {
+  await User.updateOne({ _id: req.user._id }, { $inc: { tokenVersion: 1 } });
+  clearAuthCookie(res);
+  disconnectUserSockets(req, req.user._id);
+  res.json({ message: 'Logged out on all devices' });
+};
+
 const getProfile = async (req, res) => {
-  try {
-    const user = await User.findById(req.user._id).select('-password');
-    res.json({ user });
-  } catch (error) {
-    console.error('Get profile error:', error);
-    res.status(500).json({ error: 'Server error' });
-  }
+  res.json({ user: userSelf(req.user) });
 };
 
-// Update user profile
 const updateProfile = async (req, res) => {
-  try {
-    const { username, phone } = req.body;
-    const user = req.user;
+  const { name, phone, avatar, currentPassword, newPassword } = req.body || {};
+  const user = await User.findById(req.user._id).select('+password +profile');
+  if (!user) return res.status(401).json({ error: 'Authentication required' });
 
-    // Check if username is taken by another user
-    if (username && username !== user.username) {
-      const existingUser = await User.findOne({ username });
-      if (existingUser) {
-        return res.status(400).json({ error: 'Username already taken' });
-      }
-    }
+  if (name !== undefined) user.name = name;
+  if (phone !== undefined) user.phone = phone || undefined;
 
-    // Update fields
-    if (username) user.username = username;
-    if (phone !== undefined) user.phone = phone;
-
-    // Handle avatar upload
-    if (req.file) {
-      user.avatar = `/uploads/${req.file.filename}`;
-    }
-
-    await user.save();
-
-    res.json({
-      message: 'Profile updated successfully',
-      user: {
-        id: user._id,
-        username: user.username,
-        email: user.email,
-        avatar: user.avatar,
-        phone: user.phone
-      }
-    });
-  } catch (error) {
-    console.error('Update profile error:', error);
-    res.status(500).json({ error: 'Server error' });
+  if (avatar) {
+    const img = parseImageDataUrl(avatar);
+    if (!img.ok) return res.status(400).json({ error: img.error });
+    user.profile = avatar;
   }
+
+  let passwordChanged = false;
+  if (newPassword) {
+    if (!currentPassword || !(await user.comparePassword(currentPassword))) {
+      return res.status(400).json({ error: 'Current password is incorrect' });
+    }
+    user.password = newPassword; // hashed by the model before saving
+    user.tokenVersion = (user.tokenVersion || 0) + 1; // cancels every old login
+    passwordChanged = true;
+  }
+
+  await user.save();
+
+  if (passwordChanged) {
+    setAuthCookie(res, signToken(user)); // this browser stays logged in
+    disconnectUserSockets(req, user._id); // other devices must log in again
+  }
+
+  // Only people who share a conversation with this user hear about the change
+  const io = req.app.get('io');
+  if (io) {
+    const convs = await Conversation.find({ participants: user._id }).select('participants').lean();
+    convs.forEach((c) =>
+      c.participants.forEach((p) => {
+        if (String(p) !== String(user._id)) io.to(`user:${p}`).emit('profile:updated', { userId: String(user._id) });
+      })
+    );
+  }
+  res.json({ user: userSelf(user) });
 };
 
-module.exports = {
-  register,
-  login,
-  logout,
-  getProfile,
-  updateProfile
-};
+module.exports = { register, login, logout, logoutAll, getProfile, updateProfile };

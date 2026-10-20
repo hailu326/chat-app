@@ -42,6 +42,9 @@ app.use(
   })
 );
 
+// Hosting platforms call this to see that the app is alive (no secrets, no database access)
+app.get('/healthz', (req, res) => res.json({ ok: true }));
+
 app.use(express.json({ limit: '350kb' })); // big enough for a small avatar, small enough to stop abuse
 
 // Same-site check + rate limit for the whole API
@@ -73,14 +76,17 @@ process.on('unhandledRejection', (reason) => {
   console.error('Unhandled rejection:', reason && reason.message ? reason.message : 'unknown');
 });
 
-(async () => {
-  await connectDB();
-  await Promise.all([User.init(), Conversation.init(), Message.init()]); // make sure unique indexes exist
-  attachSockets(io);
-  server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-})().catch((err) => {
-  console.error('Startup failed:', err.message);
-  process.exit(1);
-});
+// Start only when run as "node server.js". Tests import this file without starting anything.
+if (require.main === module) {
+  (async () => {
+    await connectDB();
+    await Promise.all([User.init(), Conversation.init(), Message.init()]); // make sure unique indexes exist
+    attachSockets(io);
+    server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+  })().catch((err) => {
+    console.error('Startup failed:', err.message);
+    process.exit(1);
+  });
+}
 
 module.exports = { app, server, io };

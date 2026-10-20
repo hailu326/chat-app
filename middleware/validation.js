@@ -1,77 +1,108 @@
-const { body, validationResult } = require('express-validator');
+'use strict';
+const { body, param, validationResult } = require('express-validator');
+const fs = require('fs');
 
-// Middleware to handle validation errors
+const OBJECT_ID = /^[a-f0-9]{24}$/i;
+const isObjectId = (v) => typeof v === 'string' && OBJECT_ID.test(v);
+
+// FIX: the old version sent back errors.array() which includes the submitted VALUE
+// (a password could be echoed back). Now only the field name and message are returned.
 const handleValidationErrors = (req, res, next) => {
   const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({
-      error: 'Validation failed',
-      details: errors.array()
-    });
-  }
-  next();
+  if (errors.isEmpty()) return next();
+  if (req.file && req.file.path) fs.unlink(req.file.path, () => {}); // remove an already-uploaded file
+  res.status(400).json({
+    error: 'Validation failed',
+    details: errors.array().map((e) => ({ field: e.path, message: e.msg }))
+  });
 };
 
-// Validation rules for user registration
-const validateRegistration = [
-  body('username')
+// Every rule starts with isString(): objects like {"$ne": null} are rejected -> no NoSQL injection.
+const nameRule = (optional = false) => {
+  let c = body('name');
+  if (optional) c = c.optional();
+  return c
+    .isString().withMessage('Name must be text').bail()
     .trim()
-    .isLength({ min: 3, max: 20 })
-    .withMessage('Username must be between 3 and 20 characters')
-    .matches(/^[a-zA-Z0-9_]+$/)
-    .withMessage('Username can only contain letters, numbers, and underscores'),
+    .isLength({ min: 2, max: 50 }).withMessage('Name must be 2-50 characters').bail()
+    .custom((v) => !/[\u0000-\u001f\u007f<>]/.test(v)).withMessage('Name contains invalid characters');
+};
 
+const emailRule = () =>
   body('email')
-    .isEmail()
-    .normalizeEmail()
-    .withMessage('Please provide a valid email'),
+    .isString().withMessage('Email must be text').bail()
+    .trim()
+    .toLowerCase()
+    .isEmail().withMessage('Please provide a valid email').bail()
+    .isLength({ max: 254 }).withMessage('Email is too long');
 
-  body('password')
-    .isLength({ min: 6 })
-    .withMessage('Password must be at least 6 characters long')
-    .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/)
-    .withMessage('Password must contain at least one uppercase letter, one lowercase letter, and one number'),
+const passwordRule = (field) =>
+  body(field)
+    .isString().withMessage('Password must be text').bail()
+    .isLength({ min: 8, max: 72 }).withMessage('Password must be 8-72 characters').bail()
+    .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/).withMessage('Password needs an uppercase letter, a lowercase letter and a number').bail()
+    .custom((v) => Buffer.byteLength(v, 'utf8') <= 72).withMessage('Password is too long');
 
+const phoneRule = () =>
   body('phone')
-    .optional()
-    .matches(/^\+?[1-9]\d{1,14}$/)
-    .withMessage('Please provide a valid phone number'),
-
-  handleValidationErrors
-];
-
-// Validation rules for login
-const validateLogin = [
-  body('email')
-    .isEmail()
-    .normalizeEmail()
-    .withMessage('Please provide a valid email'),
-
-  body('password')
-    .notEmpty()
-    .withMessage('Password is required'),
-
-  handleValidationErrors
-];
-
-// Validation rules for message
-const validateMessage = [
-  body('receiverId')
-    .isMongoId()
-    .withMessage('Invalid receiver ID'),
-
-  body('content')
+    .optional({ values: 'falsy' })
+    .isString().withMessage('Phone must be text').bail()
     .trim()
-    .notEmpty()
-    .withMessage('Message content cannot be empty')
-    .isLength({ max: 1000 })
-    .withMessage('Message too long'),
+    .matches(/^\+?[0-9]{7,15}$/).withMessage('Please provide a valid phone number');
 
+// The real image check (magic bytes) happens in the controller; this only limits the size.
+const avatarRule = () =>
+  body('avatar')
+    .optional({ values: 'falsy' })
+    .isString().withMessage('Invalid image').bail()
+    .isLength({ max: 300000 }).withMessage('Image is too large');
+
+const textRule = () =>
+  body('text')
+    .optional()
+    .isString().withMessage('Message must be text').bail()
+    .isLength({ max: 4000 }).withMessage('Message too long (max 4000 characters)');
+
+const validateRegistration = [nameRule(), emailRule(), passwordRule('password'), phoneRule(), avatarRule(), handleValidationErrors];
+
+const validateLogin = [
+  emailRule(),
+  body('password').isString().withMessage('Password is required').bail().isLength({ min: 1, max: 128 }).withMessage('Password is required'),
+  handleValidationErrors
+];
+
+const validateProfileUpdate = [
+  nameRule(true),
+  phoneRule(),
+  avatarRule(),
+  body('newPassword').optional({ values: 'falsy' }).isString().bail().isLength({ min: 8, max: 72 }).withMessage('Password must be 8-72 characters').bail()
+    .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/).withMessage('Password needs an uppercase letter, a lowercase letter and a number').bail()
+    .custom((v) => Buffer.byteLength(v, 'utf8') <= 72).withMessage('Password is too long'),
+  body('currentPassword').optional({ values: 'falsy' }).isString().withMessage('Invalid password').bail().isLength({ max: 128 }),
+  handleValidationErrors
+];
+
+const validateObjectIdParam = (name) => [param(name).isMongoId().withMessage('Invalid id'), handleValidationErrors];
+
+const validateOpenConversation = [body('userId').isString().bail().isMongoId().withMessage('Invalid user id'), handleValidationErrors];
+
+// Runs after multer, so "text" is available for both JSON and multipart requests
+const validateSendMessage = [textRule(), body('text').optional().trim(), handleValidationErrors];
+
+const validateEditMessage = [
+  body('text').isString().withMessage('Message must be text').bail().isLength({ max: 4000 }).withMessage('Message too long (max 4000 characters)'),
+  body('text').trim(),
   handleValidationErrors
 ];
 
 module.exports = {
+  isObjectId,
+  handleValidationErrors,
   validateRegistration,
   validateLogin,
-  validateMessage
+  validateProfileUpdate,
+  validateObjectIdParam,
+  validateOpenConversation,
+  validateSendMessage,
+  validateEditMessage
 };

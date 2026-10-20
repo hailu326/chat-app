@@ -283,6 +283,7 @@ function connectSocket() {
   socket.on('message:deleted', onMessageChanged);
   socket.on('message:read', onMessagesRead);
   socket.on('conversation:new', () => loadConversations());
+  socket.on('profile:updated', () => loadConversations().then(updateChatHeader));
   socket.on('presence:update', ({ userId, online }) => {
     const conv = conversations.find((c) => c.partner.id === userId);
     if (conv) {
