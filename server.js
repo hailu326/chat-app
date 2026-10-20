@@ -56,6 +56,9 @@ app.use('/api', require('./routes/messages'));
 
 app.use('/api', (req, res) => res.status(404).json({ error: 'Not found' }));
 
+// Android reads /.well-known/assetlinks.json to trust the installable Android app (only that folder is allowed)
+app.use('/.well-known', express.static(path.join(__dirname, 'public', '.well-known'), { dotfiles: 'allow', index: false }));
+
 // Only the "public" folder is served. The old public /uploads route is gone on purpose.
 app.use(express.static(path.join(__dirname, 'public'), { dotfiles: 'ignore' }));
 

@@ -803,3 +803,14 @@ $('save-edit-btn').addEventListener('click', async () => {
     errBox.textContent = errorText(err);
   }
 });
+
+// ============================================================
+// INSTALLABLE APP (PWA): lets Chrome / Edge install the chat like a normal app
+// ============================================================
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {
+      /* not important: the chat works without it */
+    });
+  });
+}

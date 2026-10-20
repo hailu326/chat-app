@@ -820,6 +820,48 @@ describe('Private chat security', () => {
       const html = fs.readFileSync(path.join(__dirname, '..', 'public', 'index.html'), 'utf8').replace(/<!--[\s\S]*?-->/g, ''); // ignore HTML comments
       expect(html).not.toMatch(/\son[a-z]+\s*=/i);
     });
+    test('the web app manifest is valid and its icons exist', async () => {
+      const res = await request(app).get('/manifest.webmanifest');
+      expect(res.status).toBe(200);
+      const m = JSON.parse(res.text);
+      expect(m.name).toBeTruthy();
+      expect(m.short_name).toBeTruthy();
+      expect(m.start_url).toBe('/');
+      expect(m.display).toBe('standalone');
+      const sizes = m.icons.map((i) => i.sizes);
+      expect(sizes).toEqual(expect.arrayContaining(['192x192', '512x512']));
+      expect(m.icons.some((i) => i.purpose === 'maskable')).toBe(true);
+      for (const icon of m.icons) {
+        const r = await request(app).get(icon.src);
+        expect(r.status).toBe(200);
+        expect(r.headers['content-type']).toMatch(/image\/png/);
+      }
+    });
+    test('the service worker and the offline page are served, and the worker never touches chat data', async () => {
+      const sw = await request(app).get('/sw.js');
+      expect(sw.status).toBe(200);
+      expect(sw.headers['content-type']).toMatch(/javascript/);
+      expect(sw.text).not.toMatch(/\/api|socket\.io/);
+      expect(sw.text).toMatch(/mode !== 'navigate'/); // only page loads are handled
+      expect((await request(app).get('/offline.html')).status).toBe(200);
+    });
+    test('index.html links the manifest, theme colour and icon', () => {
+      const html = fs.readFileSync(path.join(__dirname, '..', 'public', 'index.html'), 'utf8');
+      expect(html).toMatch(/rel="manifest" href="\/manifest\.webmanifest"/);
+      expect(html).toMatch(/name="theme-color"/);
+      expect(html).toMatch(/rel="apple-touch-icon"/);
+    });
+    test('the Android trust file is served as JSON from /.well-known/', async () => {
+      const res = await request(app).get('/.well-known/assetlinks.json');
+      expect(res.status).toBe(200);
+      expect(res.headers['content-type']).toMatch(/json/);
+      expect(Array.isArray(JSON.parse(res.text))).toBe(true);
+    });
+    test('source code, secrets and other folders are NOT served', async () => {
+      for (const url of ['/server.js', '/.env', '/package.json', '/models/User.js', '/node_modules/express/package.json', '/.well-known/../server.js', '/.well-known/../.env']) {
+        expect((await request(app).get(url)).status).toBe(404);
+      }
+    });
     test('too many wrong passwords -> 429 on the 11th try', async () => {
       process.env.RATE_LIMIT_OFF = '0';
       try {
