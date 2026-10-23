@@ -95,6 +95,20 @@ const validateEditMessage = [
   handleValidationErrors
 ];
 
+// Settings: every field is optional, but when it is present it must be a real true / false
+const SETTING_KEYS = ['readReceipts', 'showOnline', 'showTyping', 'discoverableByPhone'];
+const validateSettingsUpdate = [
+  ...SETTING_KEYS.map((k) => body(k).optional().custom((v) => typeof v === 'boolean').withMessage(`${k} must be true or false`)),
+  handleValidationErrors
+];
+
+// Contact lookup: a list of 1-300 phone numbers (contact names are never sent)
+const validateContactMatch = [
+  body('phones').isArray({ min: 1, max: 300 }).withMessage('Send between 1 and 300 phone numbers'),
+  body('phones.*').isString().withMessage('Each phone number must be text').bail().isLength({ min: 3, max: 40 }).withMessage('Invalid phone number'),
+  handleValidationErrors
+];
+
 module.exports = {
   isObjectId,
   handleValidationErrors,
@@ -104,5 +118,7 @@ module.exports = {
   validateObjectIdParam,
   validateOpenConversation,
   validateSendMessage,
-  validateEditMessage
+  validateEditMessage,
+  validateSettingsUpdate,
+  validateContactMatch
 };

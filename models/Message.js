@@ -19,6 +19,7 @@ const messageSchema = new mongoose.Schema(
     text: { type: String, default: '', maxlength: 4000 },
     attachment: { type: attachmentSchema, default: undefined },
     readAt: { type: Date, default: null },
+    readHidden: { type: Boolean, default: false }, // the reader turned "read receipts" off: hide the blue ticks
     editedAt: Date,
     deletedAt: Date
   },

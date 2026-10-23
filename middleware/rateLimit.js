@@ -35,6 +35,11 @@ const registerLimiter = make({ windowMs: 60 * 60 * 1000, limit: 10 }, 'Too many 
 const messageLimiter = make({ windowMs: 60 * 1000, limit: 60, keyGenerator: byUser }, 'You are sending messages too fast.');
 const searchLimiter = make({ windowMs: 60 * 1000, limit: 30, keyGenerator: byUser }, 'Too many searches. Please wait.');
 
+const contactsLimiter = make(
+  { windowMs: 60 * 60 * 1000, limit: 20, keyGenerator: byUser },
+  'Too many contact lookups. Please wait.'
+);
+
 // Tiny limiter for Socket.IO events (typing, call requests)
 function createSocketLimiter(max, windowMs) {
   const hits = new Map();
@@ -54,6 +59,7 @@ function createSocketLimiter(max, windowMs) {
   };
 }
 
+
 module.exports = {
   apiLimiter,
   loginLimiter,
@@ -61,5 +67,7 @@ module.exports = {
   registerLimiter,
   messageLimiter,
   searchLimiter,
+  contactsLimiter,
   createSocketLimiter
-}; 
+};
+

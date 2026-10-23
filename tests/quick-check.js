@@ -103,5 +103,28 @@ t('csrfGuard: POST without custom header -> 403', () => assert.strictEqual(run({
 t('csrfGuard: legit POST passes', () => assert.strictEqual(run({ method: 'POST', headers: { origin: 'http://localhost:3000', host: 'localhost:3000', 'x-requested-with': 'chat-app' } }).nextCalled, true));
 t('assertAuthConfig rejects missing/short secret', () => { delete process.env.JWT_SECRET; assert.throws(() => auth.assertAuthConfig()); process.env.JWT_SECRET = 'short'; assert.throws(() => auth.assertAuthConfig()); process.env.JWT_SECRET = 'x'.repeat(40); assert.doesNotThrow(() => auth.assertAuthConfig()); });
 
+// ---------- STEP 5: phone numbers, privacy switches, receipts ----------
+process.env.PHONE_HASH_KEY = 'k'.repeat(40);
+const phone = require(path.resolve('utils/phone.js'));
+const settingsLib = require(path.resolve('utils/settings.js'));
+
+t('phone: "+251 91 122 3344" -> 251911223344', () => assert.strictEqual(phone.normalizePhone('+251 91 122 3344'), '251911223344'));
+t('phone: local "0911223344" gets the default country code', () => assert.strictEqual(phone.normalizePhone('0911223344'), '251911223344'));
+t('phone: "(0911) 223-344" and dots/spaces are cleaned', () => { assert.strictEqual(phone.normalizePhone('(0911) 223-344'), '251911223344'); assert.strictEqual(phone.normalizePhone('0911.223.344'), '251911223344'); });
+t('phone: "00251911223344" and "251911223344" are the same number', () => { assert.strictEqual(phone.normalizePhone('00251911223344'), '251911223344'); assert.strictEqual(phone.normalizePhone('251911223344'), '251911223344'); });
+t('phone: another country code is respected (+1 212 555 1234)', () => assert.strictEqual(phone.normalizePhone('+1 (212) 555-1234'), '12125551234'));
+t('phone: the default country code can be changed', () => assert.strictEqual(phone.normalizePhone('0712345678', '254'), '254712345678'));
+t('phone: garbage is rejected', () => { for (const bad of ['', 'abc', '12', '+0123456789012', '1234567', 'a0911223344', '0911223344'.repeat(5), null, undefined, 5, {}, ['0911223344']]) assert.strictEqual(phone.normalizePhone(bad), null, String(bad)); });
+t('phone: every spelling of one number has the same fingerprint', () => { const h = phone.phoneHashOf('+251911223344'); assert.ok(/^[a-f0-9]{64}$/.test(h)); assert.strictEqual(phone.phoneHashOf('0911223344'), h); assert.strictEqual(phone.phoneHashOf('251 911 223 344'), h); });
+t('phone: different numbers have different fingerprints', () => assert.notStrictEqual(phone.phoneHashOf('0911223344'), phone.phoneHashOf('0911223345')));
+t('phone: the fingerprint depends on the secret key', () => { const a = phone.phoneHashOf('0911223344'); process.env.PHONE_HASH_KEY = 'z'.repeat(40); const b = phone.phoneHashOf('0911223344'); process.env.PHONE_HASH_KEY = 'k'.repeat(40); assert.notStrictEqual(a, b); });
+t('phone: the fingerprint never contains the number', () => assert.ok(!phone.phoneHashOf('0911223344').includes('911223344')));
+t('phone: an unusable number gives no fingerprint', () => assert.strictEqual(phone.phoneHashOf('hello'), null));
+
+t('settings: missing values fall back to the defaults (old accounts)', () => assert.deepStrictEqual(settingsLib.normalizeSettings(undefined), { readReceipts: true, showOnline: true, showTyping: true, discoverableByPhone: true }));
+t('settings: saved values are kept, other values are ignored', () => assert.deepStrictEqual(settingsLib.normalizeSettings({ readReceipts: false, showOnline: 'no', showTyping: 0, extra: 1 }), { readReceipts: false, showOnline: true, showTyping: true, discoverableByPhone: true }));
+t('dto: the logged-in user gets their own settings, other people never do', () => { const u = { _id: 'a'.repeat(24), name: 'X', email: 'e@x.com', phone: '1', settings: { showTyping: false } }; assert.strictEqual(dto.userSelf(u).settings.showTyping, false); assert.strictEqual(dto.userSelf(u).settings.readReceipts, true); assert.ok(!('settings' in dto.userPublic(u))); });
+t('dto: blue ticks are hidden when the reader turned receipts off', () => { const base = { _id: 'b'.repeat(24), conversation: 'c'.repeat(24), sender: 'a'.repeat(24), text: 'hi', readAt: new Date() }; assert.ok(dto.messageDTO({ ...base }).readAt); assert.strictEqual(dto.messageDTO({ ...base, readHidden: true }).readAt, null); assert.strictEqual(dto.messageDTO({ ...base, readAt: null }).readAt, null); });
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

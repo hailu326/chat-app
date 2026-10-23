@@ -5,6 +5,7 @@ const Conversation = require('../models/conversation');
 const Message = require('../models/Message');
 const User = require('../models/User');
 const presence = require('../socket/presence');
+const { normalizeSettings } = require('../utils/settings');
 const { messageDTO, conversationDTO, hasFile } = require('../utils/dto');
 const { detectType, readHead, sanitizeFileName } = require('../utils/fileType');
 const { parseRange } = require('../utils/range');
@@ -22,7 +23,7 @@ async function buildConversations(convs, meId) {
   const partnerIds = convs.map((c) => c.participants.find((p) => String(p) !== String(me)));
 
   const [partners, unreadRows, lastMessages] = await Promise.all([
-    User.find({ _id: { $in: partnerIds } }).select('name updatedAt').lean(),
+    User.find({ _id: { $in: partnerIds } }).select('name updatedAt settings').lean(),
     Message.aggregate([
       { $match: { conversation: { $in: convs.map((c) => c._id) }, sender: { $ne: me }, readAt: null, deletedAt: null } },
       { $group: { _id: '$conversation', n: { $sum: 1 } } }
@@ -41,7 +42,8 @@ async function buildConversations(convs, meId) {
       unread: unreadById.get(String(conv._id)) || 0,
       last: lastMessages[i],
       meId,
-      online: partner && presence.isOnline(partner._id)
+      // hidden when the partner turned "show when I am online" off
+      online: partner && presence.isOnline(partner._id) && normalizeSettings(partner.settings).showOnline
     });
   });
 }
@@ -196,11 +198,14 @@ const deleteMessage = async (req, res) => {
 
 const markRead = async (req, res) => {
   const readAt = new Date();
+  // If this reader turned "read receipts" off, the messages are still marked read for THEM (unread badge),
+  // but the sender never sees the blue ticks.
+  const sendReceipts = normalizeSettings(req.user.settings).readReceipts;
   const result = await Message.updateMany(
     { conversation: req.conversation._id, sender: { $ne: req.user._id }, readAt: null },
-    { $set: { readAt } }
+    { $set: { readAt, readHidden: !sendReceipts } }
   );
-  if (result.modifiedCount > 0) {
+  if (result.modifiedCount > 0 && sendReceipts) {
     const io = req.app.get('io');
     if (io) {
       io.to(room(req.conversation._id)).emit('message:read', {
@@ -251,7 +256,9 @@ const downloadAttachment = (req, res) => {
   const att = msg.attachment;
   if (msg.deletedAt || !hasFile(att)) return res.status(404).json({ error: 'File not found' });
 
-  const inline = /^(image|video|audio)\//.test(att.mime);
+  // ?download=1 forces a real download (used by the "Download" button); otherwise pictures, video and audio show inline
+  const forceDownload = req.query.download === '1';
+  const inline = !forceDownload && /^(image|video|audio)\//.test(att.mime);
   const headers = {
     'Content-Type': att.mime, // the verified type, not what the uploader claimed
     'Content-Disposition': `${inline ? 'inline' : 'attachment'}; filename="${asciiName(att.originalName)}"; filename*=UTF-8''${encodeRFC5987(att.originalName)}`,

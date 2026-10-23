@@ -649,3 +649,96 @@ input[type="file"] { display: none; }
     #back-btn { display: inline-block; }
     .bubble { max-width: 85%; }
 }
+
+/* ==================== 9. STEP 5: ZOOM LOCK, SETTINGS, CONTACTS, DOWNLOADS ==================== */
+
+/* ----- zoom: no double-tap zoom, no automatic text inflation, no pull-down bounce ----- */
+html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    touch-action: manipulation;
+    overscroll-behavior: none;
+}
+/* when "Allow pinch zoom" is OFF (the default) pinch gestures are ignored too */
+html.zoom-locked body { touch-action: pan-x pan-y; }
+
+@media (pointer: coarse) {
+    /* 16px stops phones from zooming the whole page when a text box is selected */
+    input, select, textarea, .message-input, .search-bar input { font-size: 16px !important; }
+}
+
+.bubble { font-size: var(--msg-font-size, 15px); }
+.main.plain { background-image: none; }
+
+/* ----- panels (settings and contacts) ----- */
+.panel-card { text-align: left; padding: 0 0 16px; max-width: 460px; }
+.panel-head {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
+    background: #f0f2f5;
+    border-radius: 15px 15px 0 0;
+}
+.panel-head h3 { margin: 0; font-size: 18px; }
+.set-section { padding: 6px 18px 8px; border-bottom: 1px solid #eef0f2; }
+.set-section h4 { margin: 12px 0 6px; font-size: 13px; letter-spacing: 0.5px; text-transform: uppercase; color: #00a884; }
+.set-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; font-size: 15px; cursor: pointer; }
+.set-row input[type="checkbox"] { width: 22px; height: 22px; accent-color: #00a884; flex-shrink: 0; }
+.set-row select { padding: 6px 8px; border: 1px solid #ccc; border-radius: 6px; }
+.set-btn {
+    display: block;
+    width: 100%;
+    margin: 8px 0;
+    padding: 11px;
+    border: 1px solid #d1d7db;
+    border-radius: 8px;
+    background: #fff;
+    font-weight: 600;
+    cursor: pointer;
+}
+.set-btn.ok { background: #00a884; color: #fff; border-color: #00a884; }
+.set-btn.danger { color: #d93025; }
+.panel-card .hint { text-align: left; margin: 4px 0 8px; line-height: 1.4; }
+.panel-card textarea { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; font-family: inherit; margin-top: 5px; }
+.panel-card .friend-list { max-height: 40vh; overflow-y: auto; flex: none; margin-top: 8px; }
+
+/* ----- attachments with a Download button ----- */
+.att { margin-bottom: 4px; }
+.att-img { cursor: zoom-in; }
+.att-file { cursor: pointer; }
+.att-bar { display: flex; align-items: center; gap: 8px; margin-top: 4px; font-size: 12px; color: #667781; }
+.att-bar .att-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; color: #111b21; }
+.att-dl {
+    border: none;
+    background: #00a884;
+    color: #fff;
+    border-radius: 12px;
+    padding: 4px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+/* ----- picture viewer ----- */
+.viewer {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 100001;
+    background: rgba(0, 0, 0, 0.92);
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+.viewer.show { display: flex; }
+.viewer-bar { position: absolute; top: 0; left: 0; right: 0; display: flex; align-items: center; gap: 12px; padding: 12px 16px; color: #fff; }
+.viewer-bar span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.viewer-bar button { border: none; border-radius: 8px; padding: 8px 14px; font-weight: 600; cursor: pointer; }
+#viewer-download { background: #00a884; color: #fff; }
+#viewer-close { background: rgba(255, 255, 255, 0.15); color: #fff; }
+.viewer img { max-width: 96vw; max-height: 82vh; object-fit: contain; }

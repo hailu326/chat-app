@@ -58,6 +58,75 @@ let listRefreshTimer = null;
 let editAvatarData = null;
 let signupAvatarData = null;
 
+// ---------- brand ----------
+const APP_NAME = 'HAILACHO Chat'; // <-- your brand name as shown inside the app (Settings > About)
+const APP_VERSION = '1.1.0';
+
+// ---------- device settings: kept only on THIS phone or computer, never sent to the server ----------
+const DEVICE_KEY = 'chat-device-settings';
+const DEVICE_DEFAULTS = { sound: true, notify: true, preview: true, textSize: 15, pattern: true, allowZoom: false };
+const TEXT_SIZES = [14, 15, 17, 19];
+
+function loadDeviceSettings() {
+  let saved = {};
+  try {
+    saved = JSON.parse(localStorage.getItem(DEVICE_KEY) || '{}') || {};
+  } catch {
+    saved = {};
+  }
+  const s = { ...DEVICE_DEFAULTS };
+  ['sound', 'notify', 'preview', 'pattern', 'allowZoom'].forEach((k) => {
+    if (typeof saved[k] === 'boolean') s[k] = saved[k];
+  });
+  if (TEXT_SIZES.includes(saved.textSize)) s.textSize = saved.textSize;
+  return s;
+}
+let deviceSettings = loadDeviceSettings();
+
+function saveDeviceSettings() {
+  try {
+    localStorage.setItem(DEVICE_KEY, JSON.stringify(deviceSettings));
+  } catch {
+    /* private mode: ignore */
+  }
+}
+
+// The zoom lock is active only INSIDE the chat (after login) and only while "Allow pinch zoom" is off.
+// The login and sign-up pages stay zoomable, so nobody is locked out of reading them.
+const zoomLocked = () => !!me && !deviceSettings.allowZoom;
+
+// Applies the text size, the chat background and the zoom lock
+function applyDeviceSettings() {
+  document.documentElement.style.setProperty('--msg-font-size', deviceSettings.textSize + 'px');
+  mainPane.classList.toggle('plain', !deviceSettings.pattern);
+  document.documentElement.classList.toggle('zoom-locked', zoomLocked());
+  const viewport = document.querySelector('meta[name="viewport"]');
+  if (viewport) {
+    viewport.setAttribute(
+      'content',
+      zoomLocked()
+        ? 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no'
+        : 'width=device-width, initial-scale=1'
+    );
+  }
+}
+applyDeviceSettings();
+
+// Stops accidental trackpad pinch-zoom (Ctrl + wheel) and Safari gestures.
+// Keyboard zoom (Ctrl and +/-) and the browser's own text-size settings still work.
+window.addEventListener(
+  'wheel',
+  (e) => {
+    if (e.ctrlKey && zoomLocked()) e.preventDefault();
+  },
+  { passive: false }
+);
+['gesturestart', 'gesturechange', 'gestureend'].forEach((name) =>
+  document.addEventListener(name, (e) => {
+    if (zoomLocked()) e.preventDefault();
+  })
+);
+
 // ---------- small helpers ----------
 function el(tag, props = {}, ...children) {
   const node = document.createElement(tag);
@@ -232,6 +301,7 @@ function handleLoggedOut() {
   if (!me) return;
   me = null;
   if (socket) socket.disconnect();
+  applyDeviceSettings(); // the login page can be zoomed again
   conversations = [];
   activeConv = null;
   messages = [];
@@ -248,6 +318,7 @@ function enterApp(user) {
   signupPage.style.display = 'none';
   loginPage.style.display = 'none';
   container.classList.remove('logged-out');
+  applyDeviceSettings(); // the zoom lock starts now that the user is inside the chat
   setAvatar(myAvatar, me.avatarUrl);
   if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission();
   connectSocket();
@@ -491,17 +562,45 @@ function renderMessages() {
   messages.forEach((m) => messageList.append(messageElement(m)));
 }
 
+// Saves a received file to the device. It works in the browser, the installed app and the Android app,
+// and it shows a message if the download fails (instead of failing silently).
+async function downloadAttachment(m) {
+  try {
+    const res = await fetch(m.attachment.url + '?download=1', { credentials: 'same-origin' });
+    if (res.status === 401) {
+      handleLoggedOut();
+      return;
+    }
+    if (!res.ok) throw new Error(res.status === 404 ? 'This file is no longer available' : 'Download failed. Please try again.');
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const link = el('a', { href: url, download: m.attachment.name });
+    document.body.append(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  } catch (err) {
+    showToast(errorText(err));
+  }
+}
+
 function renderAttachment(m) {
   const a = m.attachment;
+  let content;
   if (a.mime.startsWith('image/')) {
-    return el('a', { href: a.url, target: '_blank', rel: 'noopener noreferrer' }, el('img', { src: a.url, class: 'att-img', alt: a.name, loading: 'lazy' }));
+    content = el('img', { src: a.url, class: 'att-img', alt: a.name, loading: 'lazy', onclick: () => openViewer(m) });
+  } else if (a.mime.startsWith('video/')) {
+    content = el('video', { src: a.url, controls: '', preload: 'metadata', class: 'att-video' });
+  } else if (a.mime.startsWith('audio/')) {
+    content = el('audio', { src: a.url, controls: '', preload: 'none', class: 'att-audio' });
+  } else {
+    content = el('div', { class: 'att-file', onclick: () => downloadAttachment(m) }, el('span', { class: 'att-icon', text: '📄' }));
   }
-  if (a.mime.startsWith('video/')) return el('video', { src: a.url, controls: '', preload: 'metadata', class: 'att-video' });
-  if (a.mime.startsWith('audio/')) return el('audio', { src: a.url, controls: '', preload: 'none', class: 'att-audio' });
-  return el('a', { href: a.url, download: a.name, class: 'att-file' },
-    el('span', { class: 'att-icon', text: '📄' }),
-    el('span', { class: 'att-name', text: a.name }),
-    el('span', { class: 'att-size', text: formatSize(a.size) }));
+  return el('div', { class: 'att' }, content,
+    el('div', { class: 'att-bar' },
+      el('span', { class: 'att-name', text: a.name }),
+      el('span', { class: 'att-size', text: formatSize(a.size) }),
+      el('button', { type: 'button', class: 'att-dl', title: 'Download', text: '⬇ Download', onclick: () => downloadAttachment(m) })));
 }
 
 function messageElement(m) {
@@ -570,9 +669,10 @@ async function onIncomingMessage(m) {
   }
 
   if (!mine) {
-    messageTone.play().catch(() => {});
-    if (document.hidden && 'Notification' in window && Notification.permission === 'granted') {
-      new Notification(conv.partner.name, { body: m.text || '📎 ' + (m.attachment ? m.attachment.name : 'File') });
+    if (deviceSettings.sound) messageTone.play().catch(() => {});
+    if (deviceSettings.notify && document.hidden && 'Notification' in window && Notification.permission === 'granted') {
+      const body = deviceSettings.preview ? m.text || '📎 ' + (m.attachment ? m.attachment.name : 'File') : 'New message';
+      new Notification(conv.partner.name, { body });
     }
   }
   sortConversations();
@@ -814,3 +914,272 @@ if ('serviceWorker' in navigator) {
     });
   });
 }
+
+// ============================================================
+// PICTURE VIEWER (opens a picture inside the app, with a Download button)
+// ============================================================
+const viewerEl = $('viewer');
+const viewerImg = $('viewer-img');
+let viewerMessage = null;
+
+function openViewer(m) {
+  viewerMessage = m;
+  viewerImg.src = m.attachment.url;
+  viewerImg.alt = m.attachment.name;
+  $('viewer-name').textContent = m.attachment.name;
+  viewerEl.classList.add('show');
+}
+function closeViewer() {
+  viewerEl.classList.remove('show');
+  viewerImg.removeAttribute('src');
+  viewerMessage = null;
+}
+$('viewer-close').addEventListener('click', closeViewer);
+$('viewer-download').addEventListener('click', () => {
+  if (viewerMessage) downloadAttachment(viewerMessage);
+});
+viewerEl.addEventListener('click', (e) => {
+  if (e.target === viewerEl) closeViewer();
+});
+
+// ============================================================
+// SETTINGS
+// ============================================================
+const settingsPanel = $('settings-panel');
+const SERVER_SETTING_KEYS = ['readReceipts', 'showOnline', 'showTyping', 'discoverableByPhone'];
+
+function updateNotifyStatus() {
+  const box = $('notify-status');
+  if (!('Notification' in window)) {
+    box.textContent = 'This browser cannot show notifications.';
+    return;
+  }
+  box.textContent =
+    Notification.permission === 'denied'
+      ? 'Notifications are blocked. Allow them in your browser or phone settings for this site.'
+      : Notification.permission === 'granted'
+        ? 'Notifications are allowed on this device.'
+        : 'Not asked yet. Turn the switch on to allow them.';
+}
+
+function fillSettings() {
+  SERVER_SETTING_KEYS.forEach((k) => {
+    $('set-' + k).checked = !!(me && me.settings && me.settings[k]);
+  });
+  $('set-sound').checked = deviceSettings.sound;
+  $('set-notify').checked = deviceSettings.notify && 'Notification' in window && Notification.permission === 'granted';
+  $('set-preview').checked = deviceSettings.preview;
+  $('set-text-size').value = String(deviceSettings.textSize);
+  $('set-pattern').checked = deviceSettings.pattern;
+  $('set-allow-zoom').checked = deviceSettings.allowZoom;
+  $('about-text').textContent = `${APP_NAME} · version ${APP_VERSION}`;
+  updateNotifyStatus();
+}
+
+function openSettings() {
+  if (!me) return;
+  fillSettings();
+  settingsPanel.classList.add('show');
+}
+function closeSettings() {
+  settingsPanel.classList.remove('show');
+}
+$('settings-btn').addEventListener('click', openSettings);
+$('settings-close').addEventListener('click', closeSettings);
+settingsPanel.addEventListener('click', (e) => {
+  if (e.target === settingsPanel) closeSettings();
+});
+
+// Privacy switches live on the SERVER (they change what other people see)
+SERVER_SETTING_KEYS.forEach((key) => {
+  $('set-' + key).addEventListener('change', async (e) => {
+    const box = e.target;
+    const wanted = box.checked;
+    try {
+      const data = await api('PATCH', '/api/settings', { [key]: wanted });
+      me.settings = data.settings;
+      showToast('Saved');
+    } catch (err) {
+      box.checked = !wanted; // put the switch back if saving failed
+      showToast(errorText(err));
+    }
+  });
+});
+
+// Device switches live only on this phone / computer
+function deviceSwitch(id, key) {
+  $(id).addEventListener('change', (e) => {
+    deviceSettings[key] = e.target.checked;
+    saveDeviceSettings();
+    applyDeviceSettings();
+  });
+}
+deviceSwitch('set-sound', 'sound');
+deviceSwitch('set-preview', 'preview');
+deviceSwitch('set-pattern', 'pattern');
+deviceSwitch('set-allow-zoom', 'allowZoom');
+
+$('set-text-size').addEventListener('change', (e) => {
+  const size = Number(e.target.value);
+  if (!TEXT_SIZES.includes(size)) return;
+  deviceSettings.textSize = size;
+  saveDeviceSettings();
+  applyDeviceSettings();
+});
+
+$('set-notify').addEventListener('change', async (e) => {
+  const box = e.target;
+  if (!box.checked) {
+    deviceSettings.notify = false;
+    saveDeviceSettings();
+    updateNotifyStatus();
+    return;
+  }
+  if (!('Notification' in window)) {
+    box.checked = false;
+    updateNotifyStatus();
+    return;
+  }
+  let permission = Notification.permission;
+  if (permission === 'default') permission = await Notification.requestPermission();
+  deviceSettings.notify = permission === 'granted';
+  box.checked = deviceSettings.notify;
+  saveDeviceSettings();
+  updateNotifyStatus();
+});
+
+$('set-edit-profile').addEventListener('click', () => {
+  closeSettings();
+  $('edit-profile-btn').click();
+});
+$('set-logout').addEventListener('click', () => $('logout-btn').click());
+$('set-logout-all').addEventListener('click', async () => {
+  if (!window.confirm('Log out of ALL devices, including this one?')) return;
+  try {
+    await api('POST', '/api/auth/logout-all');
+  } catch {
+    /* ignore: the page reloads anyway */
+  }
+  window.location.reload();
+});
+$('set-reset').addEventListener('click', () => {
+  if (!window.confirm('Reset the notification, text size and zoom settings on this device?')) return;
+  deviceSettings = { ...DEVICE_DEFAULTS };
+  saveDeviceSettings();
+  applyDeviceSettings();
+  fillSettings();
+  showToast('Device settings reset');
+});
+
+// "Install this app" button (Chrome and Edge show it when the app can be installed)
+let installEvent = null;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  installEvent = e;
+  $('install-btn').style.display = 'block';
+});
+$('install-btn').addEventListener('click', async () => {
+  if (!installEvent) return;
+  installEvent.prompt();
+  try {
+    await installEvent.userChoice;
+  } catch {
+    /* ignore */
+  }
+  installEvent = null;
+  $('install-btn').style.display = 'none';
+});
+window.addEventListener('appinstalled', () => {
+  $('install-btn').style.display = 'none';
+});
+
+// ============================================================
+// CONTACTS (find people from your phone book who already use the app)
+// ============================================================
+const contactsPanel = $('contacts-panel');
+const pickBtn = $('pick-contacts-btn');
+// The phone's contact picker exists in Chrome on Android. Other browsers get the "type numbers" box.
+const canPickContacts = 'contacts' in navigator && 'ContactsManager' in window;
+
+function closeContacts() {
+  contactsPanel.classList.remove('show');
+}
+
+$('contacts-btn').addEventListener('click', () => {
+  if (!me) return;
+  $('contacts-error').textContent = '';
+  $('contacts-results').replaceChildren();
+  pickBtn.style.display = canPickContacts ? 'block' : 'none';
+  $('contacts-support').textContent = canPickContacts
+    ? ''
+    : 'This browser cannot open your phone contacts (it works in Chrome on Android). Type phone numbers below instead.';
+  contactsPanel.classList.add('show');
+});
+$('contacts-close').addEventListener('click', closeContacts);
+contactsPanel.addEventListener('click', (e) => {
+  if (e.target === contactsPanel) closeContacts();
+});
+
+// entries = [{ name, phone }]. The names stay on this device; only the numbers are sent.
+async function findContacts(entries) {
+  const list = $('contacts-results');
+  const err = $('contacts-error');
+  list.replaceChildren();
+  err.textContent = '';
+  entries = entries.slice(0, 300);
+  if (entries.length === 0) {
+    err.textContent = 'No phone numbers to check.';
+    return;
+  }
+  try {
+    const data = await api('POST', '/api/contacts/match', { phones: entries.map((e) => e.phone) });
+    if (data.matches.length === 0) {
+      list.append(el('li', { class: 'list-note', text: 'None of these contacts use this app yet.' }));
+    }
+    data.matches.forEach((m) => {
+      const local = m.indexes.map((i) => entries[i] && entries[i].name).find(Boolean) || '';
+      list.append(
+        el('li', { class: 'chat-item', onclick: () => { closeContacts(); startChatWith(m.user.id); } },
+          avatarImg(m.user.avatarUrl),
+          el('div', { class: 'chat-info' },
+            el('div', { class: 'chat-name', text: m.user.name }),
+            el('div', { class: 'chat-preview', text: local ? `In your contacts: ${local}` : 'Tap to start a private chat' })))
+      );
+    });
+    if (data.invalid > 0) {
+      list.append(el('li', { class: 'list-note', text: `${data.invalid} item(s) were not valid phone numbers.` }));
+    }
+  } catch (e) {
+    err.textContent = errorText(e);
+  }
+}
+
+pickBtn.addEventListener('click', async () => {
+  try {
+    // The phone shows its own contact list; we only receive the contacts the user selects
+    const picked = await navigator.contacts.select(['name', 'tel'], { multiple: true });
+    const entries = [];
+    picked.forEach((c) => (c.tel || []).forEach((t) => entries.push({ name: (c.name && c.name[0]) || '', phone: t })));
+    await findContacts(entries);
+  } catch (e) {
+    if (e && e.name !== 'AbortError') $('contacts-error').textContent = 'Could not open your contacts.';
+  }
+});
+
+$('contacts-find-btn').addEventListener('click', () => {
+  const entries = $('contacts-manual')
+    .value.split(/[\n,;]+/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((phone) => ({ name: '', phone }));
+  findContacts(entries);
+});
+
+// Escape closes any open panel
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    closeViewer();
+    closeSettings();
+    closeContacts();
+  }
+});

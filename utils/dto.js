@@ -1,6 +1,8 @@
 'use strict';
 // "DTO" = exactly what we are allowed to send to the browser. Never send whole database documents.
 
+const { normalizeSettings } = require('./settings');
+
 const hasFile = (a) => !!(a && (a.fileId || a.storedName));
 
 const avatarUrl = (u) =>
@@ -12,7 +14,8 @@ const userSelf = (u) => ({
   name: u.name,
   email: u.email,
   phone: u.phone || '',
-  avatarUrl: avatarUrl(u)
+  avatarUrl: avatarUrl(u),
+  settings: normalizeSettings(u.settings)
 });
 
 // What OTHER users may see: name and photo only (never email or phone)
@@ -33,7 +36,8 @@ const messageDTO = (m) => {
         ? { name: att.originalName, mime: att.mime, size: att.size, url: `/api/messages/${m._id}/attachment` }
         : null,
     createdAt: m.createdAt,
-    readAt: m.readAt || null
+    // hidden when the person who read it turned "read receipts" off
+    readAt: m.readAt && !m.readHidden ? m.readAt : null
   };
 };
 

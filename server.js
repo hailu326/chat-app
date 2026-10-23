@@ -13,6 +13,7 @@ const attachSockets = require('./socket');
 const User = require('./models/User');
 const Conversation = require('./models/conversation');
 const Message = require('./models/Message');
+const { backfillPhoneHashes } = require('./utils/phone');
 
 const isProd = process.env.NODE_ENV === 'production';
 const PORT = process.env.PORT || 3000;
@@ -52,6 +53,8 @@ app.use('/api', apiLimiter, csrfGuard);
 
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/users', require('./routes/users'));
+app.use('/api/settings', require('./routes/settings'));
+app.use('/api/contacts', require('./routes/contacts'));
 app.use('/api', require('./routes/messages'));
 
 app.use('/api', (req, res) => res.status(404).json({ error: 'Not found' }));
@@ -84,6 +87,12 @@ if (require.main === module) {
   (async () => {
     await connectDB();
     await Promise.all([User.init(), Conversation.init(), Message.init()]); // make sure unique indexes exist
+    try {
+      const filled = await backfillPhoneHashes(User);
+      if (filled) console.log(`Phone search keys created for ${filled} existing account(s)`);
+    } catch (err) {
+      console.error('Phone search keys skipped:', err.message); // the chat keeps working; contacts search just finds fewer people
+    }
     attachSockets(io);
     server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
   })().catch((err) => {

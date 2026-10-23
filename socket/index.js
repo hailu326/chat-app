@@ -1,20 +1,13 @@
 'use strict';
 const Conversation = require('../models/conversation');
 const presence = require('./presence');
+const privacy = require('./privacy');
 const { userFromToken, parseCookies, cookieName, originAllowed } = require('../middleware/auth');
 const { isObjectId } = require('../middleware/validation');
 const { createSocketLimiter } = require('../middleware/rateLimit');
 
 const limitTyping = createSocketLimiter(30, 10 * 1000); // 30 typing events / 10 s
 const limitCall = createSocketLimiter(5, 60 * 1000); // 5 call requests / minute
-
-// ids of everybody who shares a conversation with this user
-async function partnerIdsOf(userId) {
-  const convs = await Conversation.find({ participants: userId }).select('participants').lean();
-  const ids = new Set();
-  convs.forEach((c) => c.participants.forEach((p) => String(p) !== userId && ids.add(String(p))));
-  return [...ids];
-}
 
 module.exports = function attachSockets(io) {
   // 1) Every socket must be logged in. Identity comes ONLY from the signed HttpOnly cookie.
@@ -47,12 +40,9 @@ module.exports = function attachSockets(io) {
       const convs = await Conversation.find({ participants: userId }).select('_id participants').lean();
       convs.forEach((c) => socket.join(`conv:${c._id}`));
 
-      if (presence.add(userId)) {
-        // online status is shown only to people who share a conversation with this user
-        (await partnerIdsOf(userId)).forEach((pid) =>
-          io.to(`user:${pid}`).emit('presence:update', { userId, online: true })
-        );
-      }
+      // online status is shown only to people who share a conversation with this user,
+      // and only if this user did not turn "show when I am online" off
+      if (presence.add(userId)) await privacy.announce(io, userId);
     } catch (err) {
       console.error('Socket setup error:', err.message);
       socket.disconnect(true);
@@ -60,11 +50,16 @@ module.exports = function attachSockets(io) {
     }
 
     // Typing: allowed only in rooms the server put this socket in
-    socket.on('typing', (payload) => {
+    socket.on('typing', async (payload) => {
       if (!limitTyping(userId) || !payload || typeof payload !== 'object') return;
       const { conversationId, isTyping } = payload;
       if (!isObjectId(conversationId) || typeof isTyping !== 'boolean') return;
       if (!socket.rooms.has(`conv:${conversationId}`)) return;
+      try {
+        if (!(await privacy.getSettings(userId)).showTyping) return; // "show when I am typing" is off
+      } catch {
+        return;
+      }
       socket.to(`conv:${conversationId}`).emit('typing', { conversationId, userId, isTyping });
     });
 
@@ -80,11 +75,7 @@ module.exports = function attachSockets(io) {
     socket.on('disconnect', async () => {
       clearTimeout(expiryTimer);
       try {
-        if (presence.remove(userId)) {
-          (await partnerIdsOf(userId)).forEach((pid) =>
-            io.to(`user:${pid}`).emit('presence:update', { userId, online: false })
-          );
-        }
+        if (presence.remove(userId)) await privacy.announce(io, userId);
       } catch (err) {
         console.error('Socket disconnect error:', err.message);
       }

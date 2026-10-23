@@ -65,7 +65,7 @@ async function userFromToken(token) {
     return { error: err.name === 'TokenExpiredError' ? 'expired' : 'invalid' };
   }
   if (typeof payload.sub !== 'string' || !OBJECT_ID.test(payload.sub)) return { error: 'invalid' };
-  const user = await User.findById(payload.sub).select('name email phone tokenVersion updatedAt');
+  const user = await User.findById(payload.sub).select('name email phone tokenVersion updatedAt settings');
   if (!user || (user.tokenVersion || 0) !== payload.tv) return { error: 'revoked' };
   return { user, exp: payload.exp };
 }

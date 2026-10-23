@@ -58,6 +58,8 @@
         <div class="app-header">
             <img src="/default-avatar.svg" id="my-profile-img" class="header-avatar" alt="">
             <h2>Chats</h2>
+            <button type="button" class="icon-btn" id="contacts-btn" title="Find contacts"><i class="fas fa-address-book"></i></button>
+            <button type="button" class="icon-btn" id="settings-btn" title="Settings"><i class="fas fa-gear"></i></button>
             <button type="button" class="icon-btn" id="edit-profile-btn" title="Edit profile"><i class="fas fa-user-pen"></i></button>
             <button type="button" class="icon-btn" id="logout-btn" title="Log out"><i class="fas fa-right-from-bracket"></i></button>
         </div>
@@ -150,6 +152,101 @@
             <button type="button" id="cancel-edit-btn" class="cancel">Cancel</button>
         </div>
     </div>
+</div>
+
+<!-- SETTINGS PANEL -->
+<div id="settings-panel" class="modal">
+    <div class="modal-card panel-card">
+        <div class="panel-head">
+            <button type="button" class="icon-btn" id="settings-close" title="Close settings"><i class="fas fa-arrow-left"></i></button>
+            <h3>Settings</h3>
+        </div>
+
+        <section class="set-section">
+            <h4>Account</h4>
+            <button type="button" class="set-btn" id="set-edit-profile">Edit profile and change password</button>
+            <button type="button" class="set-btn" id="set-logout">Log out</button>
+            <button type="button" class="set-btn danger" id="set-logout-all">Log out of all devices</button>
+        </section>
+
+        <section class="set-section">
+            <h4>Chat (this device)</h4>
+            <label class="set-row"><span>Message text size</span>
+                <select id="set-text-size">
+                    <option value="14">Small</option>
+                    <option value="15">Normal</option>
+                    <option value="17">Large</option>
+                    <option value="19">Extra large</option>
+                </select>
+            </label>
+            <label class="set-row"><span>Show the dotted chat background</span><input type="checkbox" id="set-pattern"></label>
+        </section>
+
+        <section class="set-section">
+            <h4>Notifications (this device)</h4>
+            <label class="set-row"><span>Message sounds</span><input type="checkbox" id="set-sound"></label>
+            <label class="set-row"><span>Notifications when the app is in the background</span><input type="checkbox" id="set-notify"></label>
+            <label class="set-row"><span>Show the message text in notifications</span><input type="checkbox" id="set-preview"></label>
+            <p class="hint" id="notify-status"></p>
+        </section>
+
+        <section class="set-section">
+            <h4>Privacy</h4>
+            <label class="set-row"><span>Send read receipts (blue ticks)</span><input type="checkbox" id="set-readReceipts"></label>
+            <label class="set-row"><span>Show when I am online</span><input type="checkbox" id="set-showOnline"></label>
+            <label class="set-row"><span>Show when I am typing</span><input type="checkbox" id="set-showTyping"></label>
+            <label class="set-row"><span>Let people find me by my phone number</span><input type="checkbox" id="set-discoverableByPhone"></label>
+            <p class="hint">These switches change what the people you chat with can see. They are saved on the server.</p>
+        </section>
+
+        <section class="set-section">
+            <h4>Security</h4>
+            <p class="hint">Your messages travel over HTTPS and only the two people in a chat can open them. They are not end-to-end encrypted, so the server can technically read them. Use "Edit profile" to change your password.</p>
+        </section>
+
+        <section class="set-section">
+            <h4>Accessibility</h4>
+            <label class="set-row"><span>Allow pinch zoom</span><input type="checkbox" id="set-allow-zoom"></label>
+            <p class="hint">Off keeps the chat at a fixed size. Turn it on if you need to zoom in to read.</p>
+        </section>
+
+        <section class="set-section">
+            <h4>About</h4>
+            <p class="hint" id="about-text"></p>
+            <button type="button" class="set-btn ok" id="install-btn" style="display:none;">Install this app</button>
+            <button type="button" class="set-btn" id="set-reset">Reset settings on this device</button>
+        </section>
+    </div>
+</div>
+
+<!-- CONTACTS PANEL -->
+<div id="contacts-panel" class="modal">
+    <div class="modal-card panel-card">
+        <div class="panel-head">
+            <button type="button" class="icon-btn" id="contacts-close" title="Close"><i class="fas fa-arrow-left"></i></button>
+            <h3>Find contacts</h3>
+        </div>
+        <div class="set-section">
+            <p class="hint">Only the contacts you choose are checked. Contact names are not sent and phone numbers are not saved. A match uses the number the other person typed when they signed up. Numbers are not verified.</p>
+            <button type="button" class="set-btn ok" id="pick-contacts-btn">Choose contacts from my phone</button>
+            <p class="hint" id="contacts-support"></p>
+            <label class="field-label" for="contacts-manual">Or type phone numbers (one per line)</label>
+            <textarea id="contacts-manual" rows="3" placeholder="+251 91 122 3344" maxlength="6000"></textarea>
+            <button type="button" class="set-btn" id="contacts-find-btn">Find</button>
+            <p class="form-error" id="contacts-error"></p>
+            <ul id="contacts-results" class="friend-list"></ul>
+        </div>
+    </div>
+</div>
+
+<!-- PICTURE VIEWER -->
+<div id="viewer" class="viewer">
+    <div class="viewer-bar">
+        <span id="viewer-name"></span>
+        <button type="button" id="viewer-download">Download</button>
+        <button type="button" id="viewer-close">Close</button>
+    </div>
+    <img id="viewer-img" alt="">
 </div>
 
 <audio id="message-tone" src="universfield-new-notification-021-370045.mp3"></audio>

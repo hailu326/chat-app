@@ -3,7 +3,7 @@
 // when there is no internet.
 // PRIVACY: it never stores chat data. Only the offline page and one icon are cached. It does not touch
 // any other request, so messages, files and the real-time connection always go straight to the server.
-const CACHE = 'hailacho-shell-v1';
+const CACHE = 'hailacho-shell-v2';
 const OFFLINE_URL = '/offline.html';
 
 self.addEventListener('install', (event) => {
