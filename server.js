@@ -14,6 +14,7 @@ const User = require('./models/User');
 const Conversation = require('./models/conversation');
 const Message = require('./models/Message');
 const { backfillPhoneHashes } = require('./utils/phone');
+const PushSubscription = require('./models/PushSubscription');
 
 const isProd = process.env.NODE_ENV === 'production';
 const PORT = process.env.PORT || 3000;
@@ -42,7 +43,11 @@ app.use(
     }
   })
 );
-
+// Camera and microphone: this site only (calls). Nothing else, and nothing embedded in the page.
+app.use((req, res, next) => {
+  res.setHeader('Permissions-Policy', 'camera=(self), microphone=(self), geolocation=(), payment=()');
+  next();
+});
 // Hosting platforms call this to see that the app is alive (no secrets, no database access)
 app.get('/healthz', (req, res) => res.json({ ok: true }));
 
@@ -55,6 +60,8 @@ app.use('/api/auth', require('./routes/auth'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/settings', require('./routes/settings'));
 app.use('/api/contacts', require('./routes/contacts'));
+app.use('/api/calls', require('./routes/calls'));
+app.use('/api/push', require('./routes/push'));
 app.use('/api', require('./routes/messages'));
 
 app.use('/api', (req, res) => res.status(404).json({ error: 'Not found' }));
@@ -86,7 +93,8 @@ process.on('unhandledRejection', (reason) => {
 if (require.main === module) {
   (async () => {
     await connectDB();
-    await Promise.all([User.init(), Conversation.init(), Message.init()]); // make sure unique indexes exist
+    await Promise.all([User.init(), Conversation.init(), Message.init(), PushSubscription.init()]); // make sure unique indexes exist
+
     try {
       const filled = await backfillPhoneHashes(User);
       if (filled) console.log(`Phone search keys created for ${filled} existing account(s)`);

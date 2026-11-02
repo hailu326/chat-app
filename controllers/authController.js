@@ -2,6 +2,7 @@
 const bcrypt = require('bcrypt');
 const User = require('../models/User');
 const Conversation = require('../models/conversation');
+const PushSubscription = require('../models/PushSubscription');
 const { userSelf } = require('../utils/dto');
 const { parseImageDataUrl } = require('../utils/fileType');
 const {
@@ -68,6 +69,7 @@ const logout = async (req, res) => {
 // "Log out everywhere": raising tokenVersion makes every old login token invalid.
 const logoutAll = async (req, res) => {
   await User.updateOne({ _id: req.user._id }, { $inc: { tokenVersion: 1 } });
+  await PushSubscription.deleteMany({ user: req.user._id }); // no more phone alerts on any device
   clearAuthCookie(res);
   disconnectUserSockets(req, req.user._id);
   res.json({ message: 'Logged out on all devices' });
@@ -106,6 +108,7 @@ const updateProfile = async (req, res) => {
   if (passwordChanged) {
     setAuthCookie(res, signToken(user)); // this browser stays logged in
     disconnectUserSockets(req, user._id); // other devices must log in again
+    await PushSubscription.deleteMany({ user: user._id }); // old devices stop getting alerts (this browser registers again by itself)
   }
 
   // Only people who share a conversation with this user hear about the change

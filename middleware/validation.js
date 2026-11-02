@@ -108,6 +108,20 @@ const validateContactMatch = [
   body('phones.*').isString().withMessage('Each phone number must be text').bail().isLength({ min: 3, max: 40 }).withMessage('Invalid phone number'),
   handleValidationErrors
 ];
+// Phone alerts: the browser's push registration (the address of its push service plus two keys)
+const validatePushSubscribe = [
+  body('subscription').isObject().withMessage('Invalid subscription'),
+  body('subscription.endpoint').isString().withMessage('Invalid subscription').bail().isLength({ max: 600 }).withMessage('Invalid subscription').matches(/^https:\/\//).withMessage('Invalid subscription'),
+  body('subscription.keys.p256dh').isString().withMessage('Invalid subscription').bail().matches(/^[A-Za-z0-9_-]{20,200}$/).withMessage('Invalid subscription'),
+  body('subscription.keys.auth').isString().withMessage('Invalid subscription').bail().matches(/^[A-Za-z0-9_-]{8,100}$/).withMessage('Invalid subscription'),
+  body('preview').optional().custom((v) => typeof v === 'boolean').withMessage('preview must be true or false'),
+  handleValidationErrors
+];
+
+const validatePushUnsubscribe = [
+  body('endpoint').isString().withMessage('Invalid endpoint').bail().isLength({ min: 10, max: 600 }).withMessage('Invalid endpoint'),
+  handleValidationErrors
+];
 
 module.exports = {
   isObjectId,
@@ -120,5 +134,7 @@ module.exports = {
   validateSendMessage,
   validateEditMessage,
   validateSettingsUpdate,
-  validateContactMatch
+  validateContactMatch,
+  validatePushSubscribe,
+  validatePushUnsubscribe
 };

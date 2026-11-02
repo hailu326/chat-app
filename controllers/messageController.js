@@ -6,6 +6,7 @@ const Message = require('../models/Message');
 const User = require('../models/User');
 const presence = require('../socket/presence');
 const { normalizeSettings } = require('../utils/settings');
+const push = require('../utils/push');
 const { messageDTO, conversationDTO, hasFile } = require('../utils/dto');
 const { detectType, readHead, sanitizeFileName } = require('../utils/fileType');
 const { parseRange } = require('../utils/range');
@@ -143,6 +144,18 @@ const sendMessage = async (req, res) => {
       const dto = messageDTO(message);
       const io = req.app.get('io');
       if (io) io.to(room(req.conversation._id)).emit('message:new', dto);
+      
+      // Phone / desktop alert when the other person is not looking at the app. It never delays or breaks sending.
+      const recipientId = String(req.conversation.participants.find((p) => String(p) !== String(req.user._id)));
+      push
+        .notifyNewMessage({
+          recipientId,
+          senderName: req.user.name,
+          text,
+          attachmentName: attachment ? attachment.originalName : '',
+          conversationId: String(req.conversation._id)
+        })
+        .catch(() => {});
       result = { status: 201, body: { message: dto } };
     }
   } catch (err) {
