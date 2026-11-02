@@ -39,26 +39,38 @@ const contactsLimiter = make(
   { windowMs: 60 * 60 * 1000, limit: 20, keyGenerator: byUser },
   'Too many contact lookups. Please wait.'
 );
+// Phone alert sign-ups: 30 per hour per user. Call network details (STUN/TURN): 30 per minute per user.
+const pushLimiter = make({ windowMs: 60 * 60 * 1000, limit: 30, keyGenerator: byUser }, 'Too many requests. Please try again later.');
+const iceLimiter = make({ windowMs: 60 * 1000, limit: 30, keyGenerator: byUser }, 'Too many requests. Please wait a moment.');
 
 // Tiny limiter for Socket.IO events (typing, call requests)
 function createSocketLimiter(max, windowMs) {
+  if (process.env.NODE_ENV === 'test' && process.env.RATE_LIMIT_OFF === '1') {
+    return () => true;
+  }
+
   const hits = new Map();
+
   setInterval(() => {
     const now = Date.now();
-    for (const [k, v] of hits) if (v.reset < now) hits.delete(k);
+    for (const [k, v] of hits) {
+      if (v.reset < now) hits.delete(k);
+    }
   }, windowMs).unref();
+
   return (key) => {
     const now = Date.now();
     const e = hits.get(key);
+
     if (!e || e.reset < now) {
       hits.set(key, { count: 1, reset: now + windowMs });
       return true;
     }
+
     e.count += 1;
     return e.count <= max;
   };
 }
-
 
 module.exports = {
   apiLimiter,
@@ -68,6 +80,8 @@ module.exports = {
   messageLimiter,
   searchLimiter,
   contactsLimiter,
+  pushLimiter,
+  iceLimiter,
   createSocketLimiter
 };
 

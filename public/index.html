@@ -188,6 +188,8 @@
             <label class="set-row"><span>Notifications when the app is in the background</span><input type="checkbox" id="set-notify"></label>
             <label class="set-row"><span>Show the message text in notifications</span><input type="checkbox" id="set-preview"></label>
             <p class="hint" id="notify-status"></p>
+            <label class="set-row"><span>Alerts when the app is closed (phone and computer)</span><input type="checkbox" id="set-push"></label>
+            <p class="hint" id="push-status"></p>
         </section>
 
         <section class="set-section">
@@ -197,6 +199,13 @@
             <label class="set-row"><span>Show when I am typing</span><input type="checkbox" id="set-showTyping"></label>
             <label class="set-row"><span>Let people find me by my phone number</span><input type="checkbox" id="set-discoverableByPhone"></label>
             <p class="hint">These switches change what the people you chat with can see. They are saved on the server.</p>
+                   </section>
+
+        <section class="set-section">
+            <h4>Calls (this device)</h4>
+            <label class="set-row"><span>Ring tone</span><input type="checkbox" id="set-ring"></label>
+            <label class="set-row"><span>Hide my network address in calls</span><input type="checkbox" id="set-relay"></label>
+            <p class="hint">"Hide my network address" sends calls through a relay server, so the other person never sees your network address. Calls can be a little slower, and it only works when a relay is set up on the server.</p> 
         </section>
 
         <section class="set-section">
@@ -248,7 +257,26 @@
     </div>
     <img id="viewer-img" alt="">
 </div>
-
+<!-- CALL SCREEN (audio and video calls) -->
+<div id="call-overlay" class="call-overlay">
+    <video id="remote-video" class="call-remote" autoplay playsinline></video>
+    <video id="local-video" class="call-local" autoplay playsinline muted></video>
+    <div class="call-top">
+        <img id="call-avatar" class="call-avatar" src="/default-avatar.svg" alt="">
+        <div id="call-name" class="call-name"></div>
+        <div id="call-status" class="call-status"></div>
+    </div>
+    <div id="call-incoming-actions" class="call-actions">
+        <button type="button" class="call-btn decline" id="call-decline-btn" title="Decline"><i class="fas fa-phone-slash"></i></button>
+        <button type="button" class="call-btn accept" id="call-accept-btn" title="Accept"><i class="fas fa-phone"></i></button>
+    </div>
+    <div id="call-active-actions" class="call-actions">
+        <button type="button" class="call-btn" id="call-mute-btn" title="Mute microphone"><i class="fas fa-microphone"></i></button>
+        <button type="button" class="call-btn" id="call-camera-btn" title="Turn camera off"><i class="fas fa-video"></i></button>
+        <button type="button" class="call-btn" id="call-flip-btn" title="Switch camera"><i class="fas fa-camera-rotate"></i></button>
+        <button type="button" class="call-btn decline" id="call-hangup-btn" title="End call"><i class="fas fa-phone-slash"></i></button>
+    </div>
+</div>
 <audio id="message-tone" src="universfield-new-notification-021-370045.mp3"></audio>
 
 <script src="/socket.io/socket.io.js"></script>

@@ -64,7 +64,7 @@ const APP_VERSION = '1.1.0';
 
 // ---------- device settings: kept only on THIS phone or computer, never sent to the server ----------
 const DEVICE_KEY = 'chat-device-settings';
-const DEVICE_DEFAULTS = { sound: true, notify: true, preview: true, textSize: 15, pattern: true, allowZoom: false };
+const DEVICE_DEFAULTS = { sound: true, notify: true, preview: true, textSize: 15, pattern: true, allowZoom: false, push: false, ring: true, relay: false };
 const TEXT_SIZES = [14, 15, 17, 19];
 
 function loadDeviceSettings() {
@@ -75,7 +75,7 @@ function loadDeviceSettings() {
     saved = {};
   }
   const s = { ...DEVICE_DEFAULTS };
-  ['sound', 'notify', 'preview', 'pattern', 'allowZoom'].forEach((k) => {
+    ['sound', 'notify', 'preview', 'pattern', 'allowZoom', 'push', 'ring', 'relay'].forEach((k) => {
     if (typeof saved[k] === 'boolean') s[k] = saved[k];
   });
   if (TEXT_SIZES.includes(saved.textSize)) s.textSize = saved.textSize;
@@ -289,6 +289,7 @@ loginForm.addEventListener('submit', async (e) => {
 });
 
 $('logout-btn').addEventListener('click', async () => {
+  await forgetThisDeviceForPush(); // this device stops getting this account's alerts
   try {
     await api('POST', '/api/auth/logout');
   } catch {
@@ -302,6 +303,7 @@ function handleLoggedOut() {
   me = null;
   if (socket) socket.disconnect();
   applyDeviceSettings(); // the login page can be zoomed again
+  endCallLocally(); // no call can continue without a login
   conversations = [];
   activeConv = null;
   messages = [];
@@ -322,8 +324,10 @@ function enterApp(user) {
   setAvatar(myAvatar, me.avatarUrl);
   if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission();
   connectSocket();
-  loadConversations();
+  loadConversations().then(openConversationFromUrl); // a tapped phone alert opens the right chat
+  syncPushSubscription(); // keep this device registered for phone alerts
 }
+
 
 // On page load: is there already a valid login cookie?
 (async function init() {
@@ -346,6 +350,7 @@ function connectSocket() {
     if (err && (err.message === 'unauthorized' || err.message === 'forbidden')) handleLoggedOut();
   });
   socket.on('connect', () => {
+    emitVisibility();
     loadConversations();
     if (activeConv) loadMessages(activeConv.id);
   });
@@ -375,10 +380,7 @@ function connectSocket() {
     }
     updateChatHeader();
   });
-  socket.on('call:incoming', ({ conversationId, kind }) => {
-    const conv = conversations.find((c) => c.id === conversationId);
-    showToast(`${conv ? conv.partner.name : 'Someone'} is calling (${kind}). Calls are not built yet.`);
-  });
+   registerCallSocketEvents(socket); // incoming calls, answers and network candidates (see the CALLS block at the bottom)
 
   socket.connect();
 }
@@ -672,7 +674,7 @@ async function onIncomingMessage(m) {
     if (deviceSettings.sound) messageTone.play().catch(() => {});
     if (deviceSettings.notify && document.hidden && 'Notification' in window && Notification.permission === 'granted') {
       const body = deviceSettings.preview ? m.text || '📎 ' + (m.attachment ? m.attachment.name : 'File') : 'New message';
-      new Notification(conv.partner.name, { body });
+      new Notification(conv.partner.name, { body, tag: 'conv-' + conv.id, icon: '/icons/icon-192.png' }); // same tag as the phone alert: you never get two
     }
   }
   sortConversations();
@@ -851,9 +853,7 @@ messageInput.addEventListener('blur', stopTyping);
 
 // ---------- call buttons ----------
 function requestCall(kind) {
-  if (!socket || !activeConv) return;
-  socket.emit('call:request', { conversationId: activeConv.id, kind });
-  showToast(`Calling ${activeConv.partner.name}... (calls are not built yet)`);
+  startCall(kind === 'voice' ? 'audio' : 'video'); // a real WebRTC call (see the CALLS block at the bottom of this file)
 }
 $('voice-call-btn').addEventListener('click', () => requestCall('voice'));
 $('video-call-btn').addEventListener('click', () => requestCall('video'));
@@ -896,6 +896,7 @@ $('save-edit-btn').addEventListener('click', async () => {
   try {
     const data = await api('PATCH', '/api/auth/me', body);
     me = data.user;
+    if (body.newPassword) syncPushSubscription(); // other devices were signed out: register this one again
     setAvatar(myAvatar, me.avatarUrl);
     editModal.classList.remove('show');
     showToast('Profile updated');
@@ -974,6 +975,10 @@ function fillSettings() {
   $('set-allow-zoom').checked = deviceSettings.allowZoom;
   $('about-text').textContent = `${APP_NAME} · version ${APP_VERSION}`;
   updateNotifyStatus();
+  $('set-push').checked = deviceSettings.push && pushReady();
+  $('set-ring').checked = deviceSettings.ring;
+  $('set-relay').checked = deviceSettings.relay;
+  updatePushStatus();
 }
 
 function openSettings() {
@@ -1064,6 +1069,7 @@ $('set-logout-all').addEventListener('click', async () => {
 });
 $('set-reset').addEventListener('click', () => {
   if (!window.confirm('Reset the notification, text size and zoom settings on this device?')) return;
+  disablePush().catch(() => {}); // the reset turns alerts off, so stop them on the server too
   deviceSettings = { ...DEVICE_DEFAULTS };
   saveDeviceSettings();
   applyDeviceSettings();
@@ -1183,3 +1189,690 @@ document.addEventListener('keydown', (e) => {
     closeContacts();
   }
 });
+
+// ============================================================
+// CALLS (real audio and video calls with WebRTC)
+// The set-up messages go through the server (Socket.IO). The sound and the picture go directly between the two
+// phones, or through a TURN relay when a direct path is not possible.
+// ============================================================
+const callOverlay = $('call-overlay');
+const remoteVideo = $('remote-video');
+const localVideo = $('local-video');
+
+let call = null; // the call in progress (or ringing)
+let ringTimer = null;
+let audioCtx = null;
+
+const FALLBACK_ICE = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }], hasTurn: false };
+
+function canCall() {
+  return !!(window.RTCPeerConnection && navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+}
+
+function callErrorText(err) {
+  const name = err && err.name;
+  if (name === 'NotAllowedError' || name === 'SecurityError') return 'Allow the microphone (and camera) for this site in your browser settings, then try again.';
+  if (name === 'NotFoundError' || name === 'OverconstrainedError') return 'No microphone or camera was found on this device.';
+  if (name === 'NotReadableError') return 'The microphone or camera is being used by another app.';
+  return 'Could not start the call.';
+}
+
+function callStartError(code, name) {
+  if (code === 'busy') return `${name} is busy right now.`;
+  if (code === 'already_in_call') return 'You are already in a call.';
+  if (code === 'forbidden') return 'You cannot call this person.';
+  if (code === 'rate_limited') return 'Too many calls. Please wait a minute.';
+  return 'Could not start the call. Please try again.';
+}
+
+function openMedia(kind) {
+  return navigator.mediaDevices.getUserMedia({
+    audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+    video: kind === 'video' ? { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } } : false
+  });
+}
+
+async function loadIce() {
+  try {
+    return await api('GET', '/api/calls/ice'); // STUN and (if set up) TURN servers
+  } catch {
+    return FALLBACK_ICE;
+  }
+}
+
+// ---------- ring tone ----------
+function stopRingtone() {
+  if (ringTimer) {
+    clearInterval(ringTimer);
+    ringTimer = null;
+  }
+  if (navigator.vibrate) navigator.vibrate(0);
+}
+
+function startRingtone(outgoing) {
+  stopRingtone();
+  if (!deviceSettings.ring) return;
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    audioCtx = audioCtx || new Ctx();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    const beep = () => {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = outgoing ? 425 : 520;
+      gain.gain.value = outgoing ? 0.05 : 0.12;
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start();
+      osc.stop(audioCtx.currentTime + 0.35);
+    };
+    beep();
+    ringTimer = setInterval(beep, outgoing ? 3000 : 1600);
+    if (!outgoing && navigator.vibrate) navigator.vibrate([400, 200, 400, 1000, 400, 200, 400]);
+  } catch {
+    /* no sound: the call still works */
+  }
+}
+
+// ---------- the call screen ----------
+function setCallStatus(text) {
+  $('call-status').textContent = text;
+}
+
+function showCallUi() {
+  if (!call) return;
+  const ringingForMe = call.role === 'callee' && call.state === 'ringing';
+  $('call-name').textContent = call.partner.name;
+  setAvatar($('call-avatar'), call.partner.avatarUrl);
+  callOverlay.classList.add('show');
+  callOverlay.classList.toggle('video', call.kind === 'video');
+  callOverlay.classList.toggle('incoming', ringingForMe);
+  callOverlay.classList.toggle('active', !ringingForMe);
+  $('call-camera-btn').style.display = call.kind === 'video' ? '' : 'none';
+  $('call-flip-btn').style.display = call.kind === 'video' ? '' : 'none';
+}
+
+function newCall({ role, kind, conversationId, partner, id, offer }) {
+  return {
+    id: id || null,
+    role,
+    kind,
+    conversationId,
+    partner,
+    offer: offer || null,
+    state: role === 'callee' ? 'ringing' : 'calling',
+    pc: null,
+    localStream: null,
+    remoteStream: null,
+    outIce: [], // network candidates found before the server gave the call an id
+    inIce: [], // network candidates received before the other side's description was set
+    cancelled: false,
+    startedAt: 0,
+    timer: null,
+    ringTimeout: null,
+    dropTimer: null,
+    facing: 'user'
+  };
+}
+
+// Stops everything: tracks, connection, sounds, screen
+function endCallLocally() {
+  const c = call;
+  call = null;
+  stopRingtone();
+  if (!c) return;
+  clearTimeout(c.ringTimeout);
+  clearTimeout(c.dropTimer);
+  clearInterval(c.timer);
+  if (c.pc) {
+    c.pc.onicecandidate = null;
+    c.pc.ontrack = null;
+    c.pc.onconnectionstatechange = null;
+    try {
+      c.pc.close();
+    } catch {
+      /* already closed */
+    }
+  }
+  if (c.localStream) c.localStream.getTracks().forEach((t) => t.stop());
+  remoteVideo.srcObject = null;
+  localVideo.srcObject = null;
+  callOverlay.classList.remove('show', 'incoming', 'active', 'video', 'remote-on');
+}
+
+function attachLocal(c) {
+  localVideo.srcObject = c.localStream;
+  const p = localVideo.play && localVideo.play();
+  if (p && p.catch) p.catch(() => {});
+}
+
+function startCallTimer(c) {
+  c.startedAt = Date.now();
+  stopRingtone();
+  showCallUi();
+  const tick = () => {
+    const s = Math.floor((Date.now() - c.startedAt) / 1000);
+    setCallStatus(String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0'));
+  };
+  tick();
+  c.timer = setInterval(tick, 1000);
+}
+
+// ---------- the connection ----------
+function sendIce(c, cand) {
+  const j = typeof cand.toJSON === 'function' ? cand.toJSON() : cand;
+  const candidate = { candidate: j.candidate, sdpMid: j.sdpMid, sdpMLineIndex: j.sdpMLineIndex, usernameFragment: j.usernameFragment || null };
+  if (c.id && socket) socket.emit('call:ice', { callId: c.id, candidate });
+  else c.outIce.push(candidate);
+}
+
+function makePeer(c, ice) {
+  const pc = new RTCPeerConnection({
+    iceServers: ice.iceServers,
+    iceTransportPolicy: deviceSettings.relay && ice.hasTurn ? 'relay' : 'all' // "relay" hides this device's network address
+  });
+  pc.onicecandidate = (e) => {
+    if (e.candidate) sendIce(c, e.candidate);
+  };
+  pc.ontrack = (e) => {
+    c.remoteStream = (e.streams && e.streams[0]) || new MediaStream([e.track]);
+    remoteVideo.srcObject = c.remoteStream;
+    callOverlay.classList.toggle('remote-on', c.kind === 'video');
+    const p = remoteVideo.play && remoteVideo.play();
+    if (p && p.catch) p.catch(() => {});
+  };
+  pc.onconnectionstatechange = () => {
+    if (call !== c) return;
+    const s = pc.connectionState;
+    if (s === 'connected') {
+      clearTimeout(c.dropTimer);
+      c.state = 'active';
+      if (!c.startedAt) startCallTimer(c);
+    } else if (s === 'disconnected') {
+      setCallStatus('Reconnecting…');
+      clearTimeout(c.dropTimer);
+      c.dropTimer = setTimeout(() => {
+        if (call === c && pc.connectionState !== 'connected') {
+          showToast('The call was disconnected.');
+          hangUp();
+        }
+      }, 12000);
+    } else if (s === 'failed') {
+      showToast('The call could not connect. Check your internet and try again.');
+      hangUp();
+    }
+  };
+  c.pc = pc;
+  return pc;
+}
+
+async function flushRemoteIce(c) {
+  const list = c.inIce.splice(0);
+  for (const cand of list) {
+    try {
+      await c.pc.addIceCandidate(cand);
+    } catch {
+      /* ignore one bad candidate */
+    }
+  }
+}
+
+// ---------- start a call (the caller) ----------
+async function startCall(kind) {
+  if (!activeConv) return;
+  if (call) {
+    showToast('You are already in a call.');
+    return;
+  }
+  if (!socket || !socket.connected) {
+    showToast('Not connected. Please try again in a moment.');
+    return;
+  }
+  if (!canCall()) {
+    showToast('This browser cannot make calls. Try Chrome, Edge, Firefox or Safari.');
+    return;
+  }
+  if (window.isSecureContext === false) {
+    showToast('Calls need a secure (https) address.');
+    return;
+  }
+
+  const c = newCall({ role: 'caller', kind, conversationId: activeConv.id, partner: activeConv.partner });
+  call = c;
+  showCallUi();
+  setCallStatus('Starting…');
+  try {
+    const stream = await openMedia(kind); // the browser asks for the microphone (and camera)
+    if (call !== c) {
+      stream.getTracks().forEach((t) => t.stop());
+      return;
+    }
+    c.localStream = stream;
+    attachLocal(c);
+    const ice = await loadIce();
+    if (call !== c) return;
+    const pc = makePeer(c, ice);
+    stream.getTracks().forEach((t) => pc.addTrack(t, stream));
+    await pc.setLocalDescription(await pc.createOffer());
+    if (call !== c) return;
+
+    setCallStatus('Calling…');
+    startRingtone(true);
+    const waitForServer = setTimeout(() => {
+      if (call === c && !c.id) {
+        showToast('Could not reach the server. Please try again.');
+        endCallLocally();
+      }
+    }, 10000);
+    socket.emit('call:start', { conversationId: c.conversationId, kind, sdp: pc.localDescription.sdp }, (res) => {
+      clearTimeout(waitForServer);
+      if (!res || !res.ok) {
+        if (call === c) {
+          showToast(callStartError(res && res.error, c.partner.name));
+          endCallLocally();
+        }
+        return;
+      }
+      c.id = res.callId;
+      if (c.cancelled || call !== c) {
+        socket.emit('call:hangup', { callId: res.callId }); // the person gave up before the server answered
+        return;
+      }
+      c.outIce.splice(0).forEach((candidate) => socket.emit('call:ice', { callId: c.id, candidate }));
+    });
+  } catch (err) {
+    if (call === c) {
+      showToast(callErrorText(err));
+      endCallLocally();
+    }
+  }
+}
+
+// ---------- answer a call (the person who is called) ----------
+function onIncomingCall(d) {
+  if (!d || typeof d !== 'object' || typeof d.callId !== 'string' || typeof d.offer !== 'string' || (d.kind !== 'audio' && d.kind !== 'video')) return;
+  if (call) {
+    if (call.id === d.callId) return; // the same call again (after a reconnect)
+    if (socket) socket.emit('call:reject', { callId: d.callId }); // already in another call
+    return;
+  }
+  const conv = conversations.find((x) => x.id === d.conversationId);
+  const partner = conv ? conv.partner : { id: d.from, name: 'Someone', avatarUrl: '' };
+  const c = newCall({ role: 'callee', kind: d.kind, conversationId: d.conversationId, partner, id: d.callId, offer: d.offer });
+  call = c;
+  showCallUi();
+  setCallStatus(d.kind === 'video' ? 'Incoming video call' : 'Incoming audio call');
+  startRingtone(false);
+  c.ringTimeout = setTimeout(() => {
+    if (call === c && c.state === 'ringing') endCallLocally();
+  }, 50000);
+  if (!conv) {
+    loadConversations().then(() => {
+      const k = conversations.find((x) => x.id === d.conversationId);
+      if (k && call === c) {
+        c.partner = k.partner;
+        showCallUi();
+      }
+    });
+  }
+  if (document.hidden && deviceSettings.notify && 'Notification' in window && Notification.permission === 'granted') {
+    try {
+      const n = new Notification(partner.name, {
+        body: d.kind === 'video' ? 'Incoming video call' : 'Incoming audio call',
+        tag: 'call-' + d.conversationId,
+        requireInteraction: true,
+        icon: '/icons/icon-192.png'
+      });
+      n.onclick = () => {
+        window.focus();
+        n.close();
+      };
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+async function acceptCall() {
+  const c = call;
+  if (!c || c.role !== 'callee' || c.state !== 'ringing') return;
+  stopRingtone();
+  clearTimeout(c.ringTimeout);
+  c.state = 'connecting';
+  showCallUi();
+  setCallStatus('Connecting…');
+  try {
+    const stream = await openMedia(c.kind);
+    if (call !== c) {
+      stream.getTracks().forEach((t) => t.stop());
+      return;
+    }
+    c.localStream = stream;
+    attachLocal(c);
+    const ice = await loadIce();
+    if (call !== c) return;
+    const pc = makePeer(c, ice);
+    stream.getTracks().forEach((t) => pc.addTrack(t, stream));
+    await pc.setRemoteDescription({ type: 'offer', sdp: c.offer });
+    await flushRemoteIce(c);
+    await pc.setLocalDescription(await pc.createAnswer());
+    if (call !== c) return;
+    socket.emit('call:accept', { callId: c.id, sdp: pc.localDescription.sdp }, (res) => {
+      if (!res || !res.ok) {
+        if (call === c) {
+          showToast('This call is no longer available.');
+          endCallLocally();
+        }
+      }
+    });
+  } catch (err) {
+    if (call === c) {
+      showToast(callErrorText(err));
+      if (c.id && socket) socket.emit('call:reject', { callId: c.id });
+      endCallLocally();
+    }
+  }
+}
+
+function declineCall() {
+  const c = call;
+  if (!c) return;
+  if (c.id && socket) socket.emit('call:reject', { callId: c.id });
+  endCallLocally();
+}
+
+function hangUp() {
+  const c = call;
+  if (!c) return;
+  if (c.id && socket) socket.emit('call:hangup', { callId: c.id });
+  else c.cancelled = true; // the server does not know this call yet: it is cancelled as soon as the server answers
+  endCallLocally();
+}
+
+// ---------- messages from the other person (through the server) ----------
+async function onCallAccepted(d) {
+  const c = call;
+  if (!c || !d || d.callId !== c.id || c.role !== 'caller' || !c.pc || typeof d.answer !== 'string') return;
+  try {
+    stopRingtone();
+    c.state = 'connecting';
+    setCallStatus('Connecting…');
+    showCallUi();
+    await c.pc.setRemoteDescription({ type: 'answer', sdp: d.answer });
+    await flushRemoteIce(c);
+  } catch {
+    if (call === c) {
+      showToast('The call could not connect.');
+      hangUp();
+    }
+  }
+}
+
+async function onRemoteIce(d) {
+  const c = call;
+  if (!c || !d || d.callId !== c.id || !d.candidate) return;
+  if (c.pc && c.pc.remoteDescription) {
+    try {
+      await c.pc.addIceCandidate(d.candidate);
+    } catch {
+      /* ignore one bad candidate */
+    }
+  } else {
+    c.inIce.push(d.candidate); // kept until the other side's description is set
+  }
+}
+
+function endedText(reason, c) {
+  const name = c.partner.name;
+  if (reason === 'rejected') return `${name} declined the call.`;
+  if (reason === 'timeout') return c.role === 'caller' ? `${name} did not answer.` : `Missed call from ${name}.`;
+  if (reason === 'cancelled') return `Missed call from ${name}.`;
+  if (reason === 'hangup') return 'Call ended.';
+  if (reason === 'disconnected') return 'The call was disconnected.';
+  if (reason === 'answered_elsewhere') return 'Answered on another device.';
+  return '';
+}
+
+function onCallEnded(d) {
+  const c = call;
+  if (!c || !d || d.callId !== c.id) return;
+  const text = endedText(d.reason, c);
+  endCallLocally();
+  if (text) showToast(text);
+}
+
+function registerCallSocketEvents(sock) {
+  sock.on('call:incoming', onIncomingCall);
+  sock.on('call:accepted', onCallAccepted);
+  sock.on('call:ice', onRemoteIce);
+  sock.on('call:ended', onCallEnded);
+}
+
+// ---------- buttons on the call screen ----------
+function toggleMute() {
+  if (!call || !call.localStream) return;
+  const tracks = call.localStream.getAudioTracks();
+  const enable = tracks.some((t) => !t.enabled);
+  tracks.forEach((t) => {
+    t.enabled = enable;
+  });
+  const btn = $('call-mute-btn');
+  btn.classList.toggle('off', !enable);
+  btn.title = enable ? 'Mute microphone' : 'Unmute microphone';
+}
+
+function toggleCamera() {
+  if (!call || !call.localStream) return;
+  const tracks = call.localStream.getVideoTracks();
+  const enable = tracks.some((t) => !t.enabled);
+  tracks.forEach((t) => {
+    t.enabled = enable;
+  });
+  const btn = $('call-camera-btn');
+  btn.classList.toggle('off', !enable);
+  btn.title = enable ? 'Turn camera off' : 'Turn camera on';
+}
+
+async function flipCamera() {
+  const c = call;
+  if (!c || !c.localStream || !c.pc) return;
+  const facing = c.facing === 'user' ? 'environment' : 'user';
+  try {
+    const fresh = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing } });
+    const track = fresh.getVideoTracks()[0];
+    const sender = c.pc.getSenders().find((s) => s.track && s.track.kind === 'video');
+    if (sender && track) await sender.replaceTrack(track);
+    c.localStream.getVideoTracks().forEach((t) => {
+      t.stop();
+      c.localStream.removeTrack(t);
+    });
+    c.localStream.addTrack(track);
+    c.facing = facing;
+    attachLocal(c);
+  } catch {
+    showToast('Could not switch the camera.');
+  }
+}
+
+$('call-accept-btn').addEventListener('click', acceptCall);
+$('call-decline-btn').addEventListener('click', declineCall);
+$('call-hangup-btn').addEventListener('click', hangUp);
+$('call-mute-btn').addEventListener('click', toggleMute);
+$('call-camera-btn').addEventListener('click', toggleCamera);
+$('call-flip-btn').addEventListener('click', flipCamera);
+
+// The server sends phone alerts only when the app is NOT in front of the person, so it needs to know
+function emitVisibility() {
+  if (socket && socket.connected) socket.emit('visibility', { visible: !document.hidden });
+}
+document.addEventListener('visibilitychange', emitVisibility);
+
+// ============================================================
+// PHONE ALERTS (Web Push): alerts when the app is closed or in another tab
+// ============================================================
+const pushSupported = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+const pushReady = () => pushSupported && Notification.permission === 'granted';
+
+function urlBase64ToUint8Array(base64) {
+  const padded = (base64 + '='.repeat((4 - (base64.length % 4)) % 4)).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(padded);
+  const out = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+  return out;
+}
+
+function sameBytes(a, b) {
+  const x = new Uint8Array(a);
+  const y = new Uint8Array(b);
+  return x.length === y.length && x.every((v, i) => v === y[i]);
+}
+
+function updatePushStatus() {
+  const box = $('push-status');
+  const ios = /iphone|ipad|ipod/i.test((navigator && navigator.userAgent) || '');
+  const standalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || (navigator && navigator.standalone);
+  if (!pushSupported) {
+    box.textContent = ios && !standalone
+      ? 'On iPhone: add this app to your Home Screen first (Share, then Add to Home Screen), then open it from there.'
+      : 'This browser cannot receive alerts when the app is closed.';
+  } else if (Notification.permission === 'denied') {
+    box.textContent = 'Notifications are blocked. Allow them in your browser or phone settings for this site.';
+  } else {
+    box.textContent = deviceSettings.push && Notification.permission === 'granted'
+      ? 'On. You get alerts even when the app is closed.'
+      : 'Off. Turn it on to get alerts when the app is closed.';
+  }
+}
+
+// Registers THIS device for alerts. Returns '' when it worked, or a message that explains the problem.
+async function enablePush() {
+  if (!pushSupported) return 'This browser cannot receive alerts when the app is closed.';
+  let permission = Notification.permission;
+  if (permission === 'default') permission = await Notification.requestPermission();
+  if (permission !== 'granted') return 'Notifications are blocked for this site. Allow them in your browser or phone settings.';
+
+  const keyData = await api('GET', '/api/push/key');
+  if (!keyData.enabled) return 'Alerts when the app is closed are not switched on on the server yet.';
+
+  const reg = await navigator.serviceWorker.ready;
+  const key = urlBase64ToUint8Array(keyData.publicKey);
+  let sub = await reg.pushManager.getSubscription();
+  if (sub && sub.options && sub.options.applicationServerKey && !sameBytes(sub.options.applicationServerKey, key)) {
+    await sub.unsubscribe(); // it was made with an older server key
+    sub = null;
+  }
+  if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
+  await api('POST', '/api/push/subscribe', { subscription: sub.toJSON(), preview: deviceSettings.preview });
+  return '';
+}
+
+async function disablePush() {
+  if (!pushSupported) return;
+  const reg = await navigator.serviceWorker.getRegistration();
+  const sub = reg && (await reg.pushManager.getSubscription());
+  if (!sub) return;
+  try {
+    await api('POST', '/api/push/unsubscribe', { endpoint: sub.endpoint });
+  } catch {
+    /* ignore */
+  }
+  await sub.unsubscribe();
+}
+
+// After login: make sure this device is registered for the account that just logged in
+async function syncPushSubscription() {
+  if (!pushSupported || !deviceSettings.push || Notification.permission !== 'granted') return;
+  try {
+    await enablePush();
+  } catch {
+    /* alerts are optional: ignore */
+  }
+}
+
+// On logout: this device stops getting this account's alerts (it registers again at the next login)
+async function forgetThisDeviceForPush() {
+  if (!pushSupported) return;
+  try {
+    const reg = await navigator.serviceWorker.getRegistration();
+    const sub = reg && (await reg.pushManager.getSubscription());
+    if (sub) await api('POST', '/api/push/unsubscribe', { endpoint: sub.endpoint });
+  } catch {
+    /* ignore */
+  }
+}
+
+$('set-push').addEventListener('change', async (e) => {
+  const box = e.target;
+  try {
+    if (box.checked) {
+      const problem = await enablePush();
+      if (problem) {
+        box.checked = false;
+        deviceSettings.push = false;
+        showToast(problem);
+      } else {
+        deviceSettings.push = true;
+        showToast('Alerts are on, even when the app is closed.');
+      }
+    } else {
+      await disablePush();
+      deviceSettings.push = false;
+    }
+  } catch (err) {
+    box.checked = !box.checked;
+    showToast(errorText(err));
+  }
+  saveDeviceSettings();
+  updatePushStatus();
+});
+
+// the "show message text" choice also belongs to this device's alerts
+$('set-preview').addEventListener('change', () => {
+  if (deviceSettings.push) syncPushSubscription();
+});
+$('set-ring').addEventListener('change', (e) => {
+  deviceSettings.ring = e.target.checked;
+  saveDeviceSettings();
+});
+$('set-relay').addEventListener('change', (e) => {
+  deviceSettings.relay = e.target.checked;
+  saveDeviceSettings();
+});
+
+// Tapping an alert: open that chat (the page may already be open, or be opened by the alert)
+function openConversationById(id) {
+  if (!me) return;
+  if (conversations.some((c) => c.id === id)) {
+    openConversation(id);
+    return;
+  }
+  loadConversations().then(() => {
+    if (conversations.some((c) => c.id === id)) openConversation(id);
+  });
+}
+
+function openConversationFromUrl() {
+  let id = '';
+  try {
+    id = new URLSearchParams(window.location.search).get('c') || '';
+  } catch {
+    id = '';
+  }
+  if (!/^[a-f0-9]{24}$/i.test(id)) return;
+  try {
+    window.history.replaceState(null, '', window.location.pathname);
+  } catch {
+    /* ignore */
+  }
+  openConversationById(id);
+}
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('message', (e) => {
+    const d = (e && e.data) || {};
+    if (d.type === 'notification-click' && me && /^[a-f0-9]{24}$/i.test(String(d.conversationId || ''))) openConversationById(d.conversationId);
+    if (d.type === 'push-resubscribe') syncPushSubscription();
+  });
+}
